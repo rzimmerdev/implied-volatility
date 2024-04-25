@@ -1,0 +1,9 @@
+.idea
+.vscode
+
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.gz
+paper/*.aux
