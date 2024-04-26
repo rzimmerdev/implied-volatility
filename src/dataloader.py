@@ -4,10 +4,7 @@ import zipfile
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import plotly.graph_objs as go
 from mpl_toolkits.mplot3d import Axes3D
-import plotly.offline as pyo
-from scipy.interpolate import griddata
 from torch.utils.data import Dataset
 
 
@@ -75,22 +72,15 @@ class Dataviewer:
         y = df["maturity"].values
         z = df["iv"].values
 
-        # Perform interpolation to fill in missing values
-        xi = np.linspace(min(x), max(x), 100)  # Define a grid for x
-        yi = np.linspace(min(y), max(y), 100)  # Define a grid for y
-        xi, yi = np.meshgrid(xi, yi)
-        zi = griddata((x, y), z, (xi, yi), method='cubic')
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot_trisurf(x, y, z, cmap='viridis')
 
-        fig = go.Figure(data=[go.Surface(z=zi, x=xi, y=yi)])
-        fig.update_layout(title='IV Surface', autosize=False,
-                          width=500, height=500,
-                          margin=dict(l=65, r=50, b=65, t=90))
-        # add labels
-        fig.update_layout(scene=dict(
-            xaxis_title='Strike',
-            yaxis_title='Maturity',
-            zaxis_title='IV'))
-        fig.show()
+        ax.set_xlabel('Strike')
+        ax.set_ylabel('Maturity')
+        ax.set_zlabel('IV')
+
+        plt.show()
 
 
 if __name__ == "__main__":
