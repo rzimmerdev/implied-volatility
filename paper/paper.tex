@@ -55,7 +55,7 @@
 
 \renewcommand{\headeright}{}
 \renewcommand{\undertitle}{}
-\renewcommand{\shorttitle}{IDNN for Approximating the Volatility Surface}
+\renewcommand{\shorttitle}{Implicit variations of Deep Neural Networks for Approximating the Volatility Surface}
 
 \hypersetup{
 	pdftitle={Implicit variations of Deep Neural Networks for Approximating the Volatility Surface},
@@ -68,20 +68,23 @@
 	\maketitle
 	
 	\begin{abstract}
-		
+		\include{content/abstract}
 	\end{abstract}
 	
 	\keywords{First keyword \and Second keyword \and More}
 	
-	\section{Introduction}
-	\section{Headings: first level}
-	\label{sec:headings}
+	\include{content/introduction}
 	
-	See Section \ref{sec:headings}.
+	\include{content/theory}
 	
-	\subsection{Headings: second level}
+	\section{Methodology}
+	\include{content/methodology}
 	
-	\subsubsection{Headings: third level}
+	\section{Results}
+	\include{content/results}
+	
+	\section{Conclusion}
+	\include{content/conclusion}
 	
 	\bibliographystyle{unsrtnat}
 	\bibliography{bibliography}
