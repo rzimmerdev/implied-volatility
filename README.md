@@ -35,11 +35,11 @@ this project seeks to provide a more interpretable and efficient approach to app
 1. Ensure you have Python and PyTorch installed on your system.
 2. Prepare your data: The input data should include a set of options with corresponding market prices and parameters,
     as given in the `archive.zip` dataset, taken from the Kaggle Dataset [option_SPY_dataset_combined.csv](https://www.kaggle.com/datasets/shawlu/option-spy-dataset-combinedcsv).
-3. Train the Implicit Deep Neural Network:
+3. Visualize the data with:
    ```
-   python src/train.py --data dataset/option_SPY_dataset_combined.csv
+   python src/dataloader.py
    ```
-   Replace `/path/to/your/data.csv` with the path to your dataset.
+   Replace the `filepath` with the path to your dataset.
 4. Once trained, you can use the trained model to approximate the implied volatility surface for new options data.
 
 ## References
