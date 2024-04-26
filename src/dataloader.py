@@ -3,8 +3,11 @@ import zipfile
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-
+import matplotlib.pyplot as plt
+import plotly.graph_objs as go
+from mpl_toolkits.mplot3d import Axes3D
+import plotly.offline as pyo
+from scipy.interpolate import griddata
 from torch.utils.data import Dataset
 
 
@@ -50,6 +53,7 @@ class VolatilityDataset(Dataset):
       dtype='object')
         :param maturity: interval of maturity
         :param strike: interval of strike
+        :param date: date
         :return:
         """
         # return self.data[
@@ -69,20 +73,23 @@ class Dataviewer:
         df = df.dropna().drop_duplicates()
         x = df["strike"].values
         y = df["maturity"].values
-
-        # tile z
         z = df["iv"].values
-        z = np.tile(z, (len(z), 1))
 
-        fig = go.Figure(data=[go.Surface(z=z, x=x, y=y)])
-        fig.update_layout(title='IV Surface',
-                          scene=dict(
-                              xaxis_title='Strike',
-                              yaxis_title='Maturity',
-                              zaxis_title='IV'),
-                          autosize=False,
-                          width=800, height=800)
+        # Perform interpolation to fill in missing values
+        xi = np.linspace(min(x), max(x), 100)  # Define a grid for x
+        yi = np.linspace(min(y), max(y), 100)  # Define a grid for y
+        xi, yi = np.meshgrid(xi, yi)
+        zi = griddata((x, y), z, (xi, yi), method='cubic')
 
+        fig = go.Figure(data=[go.Surface(z=zi, x=xi, y=yi)])
+        fig.update_layout(title='IV Surface', autosize=False,
+                          width=500, height=500,
+                          margin=dict(l=65, r=50, b=65, t=90))
+        # add labels
+        fig.update_layout(scene=dict(
+            xaxis_title='Strike',
+            yaxis_title='Maturity',
+            zaxis_title='IV'))
         fig.show()
 
 
