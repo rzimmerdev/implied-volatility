@@ -45,11 +45,11 @@ class SABR:
 
         return self.alpha, self.beta, self.rho
 
-    def preview(self, ax, r, d=0):
+    def preview(self, r, d=0):
         s = 100
         t = np.linspace(0.1, 2, 10)
         k = np.array([
-            np.random.randint(80, 120, 100) for _ in t
+            np.linspace(80, 120, 100) for _ in t
         ])
 
         ivol = np.array([
@@ -67,15 +67,7 @@ class SABR:
         return s, k, t, ivol
 
 
-def main():
-    # draw simple volatility smile
-    import matplotlib
-
-    matplotlib.use("TkAgg")
-
-    A = np.arange(0.01, 0.5, 0.1)  # len = 5
-    B = np.arange(0.1, 0.5, 0.1)  # len = 4
-    r = 0.1
+def plot_3d(A, B, r):
     # total graphs = 5 * 4 * 1 = 20
 
     fig = plt.figure(figsize=(12, 12))
@@ -89,7 +81,7 @@ def main():
             sabr = SABR(a, b, r, 0.1)
             # ignore pycharm warning
             # noinspection PyTypeChecker
-            _, K, T, IV = sabr.preview(ax, r)
+            _, K, T, IV = sabr.preview(r)
             ax.plot_trisurf(K, T, IV, cmap='viridis')
             plot_index += 1
 
@@ -98,6 +90,51 @@ def main():
     # change subplots size
     fig.set_size_inches(18.5, 16.5)
     plt.show()
+
+
+def plot_2d(a, b, r):
+    sabr = SABR(a, b, r, 0.1)
+    _, K, T, IV = sabr.preview(r)
+
+    # plot 2d cuts of the 3d surface
+    # choose h and w to be closer to a square
+
+    unique_T = np.unique(T)
+
+    total_size = len(np.unique(T))
+    h = total_size // 2
+    w = 2
+    fig, ax = plt.subplots(h, w)
+
+    for i, t in enumerate(unique_T):
+        x = K[T == t]
+        y = IV[T == t]
+
+        idx, idy = i // 2, i % 2
+        ax[idx, idy].plot(x, y)
+        ax[idx, idy].set_title(f"T={t:.1f}")
+        ax[idx, idy].set_xlabel('Strike')
+        ax[idx, idy].set_ylabel('IV')
+
+    plt.tight_layout()
+    plt.subplots_adjust(wspace=0.4, hspace=0.4)
+    # change subplots size
+    fig.set_size_inches(18.5, 16.5)
+    plt.show()
+
+
+def main():
+    # draw simple volatility smile
+    import matplotlib
+
+    matplotlib.use("TkAgg")
+
+    A = np.arange(0.01, 0.4, 0.1)  # len = 5
+    B = np.arange(0.1, 0.5, 0.1)  # len = 4
+    r = 0.1
+
+    plot_2d(0.1, 0.1, 0.1)
+    plot_3d(A, B, r)
 
 
 if __name__ == '__main__':
