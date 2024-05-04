@@ -1,10 +1,9 @@
 import os
 import zipfile
 
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import matplotlib
 from torch.utils.data import Dataset
 
 
@@ -64,7 +63,7 @@ class VolatilityDataset(Dataset):
 
 class Dataviewer:
     def __init__(self):
-        pass
+        matplotlib.use('TkAgg')
 
     def view_surface(self, df):
         df = df.dropna().drop_duplicates()
