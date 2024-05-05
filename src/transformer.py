@@ -15,7 +15,9 @@ class SelfAttention(nn.Module):
         self.in_features = in_features
         self.heads = heads
 
-        assert (self.head_dim * heads == in_features)
+        assert (
+                self.head_dim * heads == in_features
+        )
 
         self.W_v = nn.Linear(self.head_dim, self.head_dim, bias=False)
         self.W_k = nn.Linear(self.head_dim, self.head_dim, bias=False)

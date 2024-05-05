@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import minimize
 
 
-class SABR:
+class SABRModel:
     @classmethod
     def forward(cls, t, s, r, d: float = 0.0):
         return s * np.exp((r - d) * t)
@@ -35,18 +35,22 @@ class SABR:
     @classmethod
     def fit(cls, initial_guess, x, y):
         def error(i):
-            with np.errstate(divide='raise'):
-                return np.sum((cls.ivol_vectorized(i, x) - y) ** 2)
+            try:
+                with np.errstate(divide='raise'):
+                    return np.sum((cls.ivol_vectorized(i, x) - y) ** 2)
+            except FloatingPointError:
+                print(i)
+                return 1e9
 
         i0 = np.array(initial_guess)
         bounds = [(1e-16, None), (1e-16, 1), (-1 + 1e-9, 1 - 1e-9), (0, None)]
 
         res = minimize(error, i0, method='L-BFGS-B', bounds=bounds)
 
-        return SABRModel(*res.x)
+        return SABR(*res.x)
 
 
-class SABRModel:
+class SABR:
     def __init__(self, alpha, beta, rho, volvol):
         self.alpha = alpha
         self.beta = beta
@@ -54,11 +58,16 @@ class SABRModel:
         self.volvol = volvol
 
     def ivol(self, s, k, t, r, d):
-        return SABR.ivol(self.alpha, self.beta, self.rho, self.volvol, s, k, t, r, d)
+        return SABRModel.ivol(self.alpha, self.beta, self.rho, self.volvol, s, k, t, r, d)
 
     def ivol_vectorized(self, x):
-        return SABR.ivol_vectorized([self.alpha, self.beta, self.rho, self.volvol], x)
+        return SABRModel.ivol_vectorized([self.alpha, self.beta, self.rho, self.volvol], x)
 
+    def __call__(self, *args, **kwargs):
+        if len(args) == 1:
+            return self.ivol_vectorized(*args, **kwargs)
+        else:
+            return self.ivol(*args, **kwargs)
 
 def main():
     s = 100
@@ -71,8 +80,8 @@ def main():
 
     for i in range(len(t)):
         x = np.array([[s, k, t[i], r, d] for k in k])
-        y = SABR.ivol(0.1, 0.5, 0.1, 0.1, s, k, t[i], r, d)
-        sabr = SABR.fit([0.1, 0.5, 0.1, 0.1], x, y)
+        y = SABRModel.ivol(0.1, 0.5, 0.1, 0.1, s, k, t[i], r, d)
+        sabr = SABRModel.fit([0.1, 0.5, 0.1, 0.1], x, y)
         sabrs.append(sabr)
 
     for i, sabr in enumerate(sabrs):
