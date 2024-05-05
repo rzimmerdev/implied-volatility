@@ -21,7 +21,9 @@ class Helper:
                        Helper.z(alpha, beta, volvol, f, k, 0, rho) - rho) / (1 - rho))
 
     @staticmethod
-    def ivol(alpha, beta, rho, volvol, s, k, t, r, d=0):
+    def ivol(alpha, beta, rho, volvol, s, k, t, r, d=None):
+        if d is None:
+            d = [0] * len(t)
         f = Helper.forward(s, t, r, d)
         return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (Helper.x(alpha, beta, volvol, f, k, rho) ** 2) / 24 +
                                                       (Helper.x(alpha, beta, volvol, f, k, rho) ** 4) / 1920)
@@ -35,37 +37,23 @@ class SABR:
         self.volvol = volvol
 
     def fit(self, x, y):
-        """
-        :param s: spot price
-        :param k: strike
-        :param t: time to maturity
-        :param iv: implied volatility
-        :return: alpha, beta, rho
-        """
-
-        # def error(x):
-        #     return np.sum((self.ivol(*x) - y) ** 2)
-        #
-        # x0 = np.array([self.alpha, self.beta, self.rho])
-        # bounds = [(0, None), (0, 1), (-1, 1)]
-        #
-        # res = minimize(error, x0, method='L-BFGS-B', bounds=bounds)
-        # self.alpha, self.beta, self.rho = res.x
-        #
-        # return self.alpha, self.beta, self.rho
-
-        # fit self.alpha, self.beta, self.rho, self.volvol to minimize the error
         def error(i):
-            # i = (self.alpha, self.beta, self.rho, self.volvol)
-            return np.sum((Helper.ivol(*i, x[:, 0], x[:, 1], x[:, 2], x[:, 3]) - y) ** 2)
-
+            with np.errstate(divide='raise'):
+                try:
+                    return np.sum((Helper.ivol(*i, x[:, 0], x[:, 1], x[:, 2], x[:, 3]) - y) ** 2)
+                except Exception:
+                    print(f"Unable to calculate for {i}")
+                    return 1e6
         i0 = np.array([self.alpha, self.beta, self.rho, self.volvol])
-        bounds = [(0, None), (0, 1), (-1, 1), (0, None)]
+        bounds = [(1e-16, None), (1e-16, 1), (-1, 1), (0, None)]
 
         res = minimize(error, i0, method='L-BFGS-B', bounds=bounds)
 
         self.alpha, self.beta, self.rho, self.volvol = res.x
         return self.alpha, self.beta, self.rho, self.volvol
+
+    def ivol(self, s, k, t, r, d=0):
+        return Helper.ivol(self.alpha, self.beta, self.rho, self.volvol, s, k, t, r, d)
 
     def preview(self, r, d=0):
         s = 100
@@ -147,16 +135,40 @@ def plot_2d(a, b, r):
 
 def main():
     # draw simple volatility smile
-    import matplotlib
+    def test_plot():
+        import matplotlib
 
-    matplotlib.use("TkAgg")
+        matplotlib.use("TkAgg")
 
-    A = np.arange(0.01, 0.4, 0.1)  # len = 5
-    B = np.arange(0.1, 0.5, 0.1)  # len = 4
-    r = 0.1
+        A = np.arange(0.01, 0.4, 0.1)  # len = 5
+        B = np.arange(0.1, 0.5, 0.1)  # len = 4
+        r = 0.1
 
-    plot_2d(0.1, 0.1, 0.1)
-    plot_3d(A, B, r)
+        plot_2d(0.1, 0.1, 0.1)
+        plot_3d(A, B, r)
+
+    def test_fit():
+        x = np.array([
+            [100, 100, 0.1, 0.1],
+            [100, 100, 0.2, 0.1],
+            [100, 100, 0.3, 0.1],
+            [100, 100, 0.4, 0.1],
+            [100, 100, 0.5, 0.1],
+            [100, 100, 0.6, 0.1],
+            [100, 100, 0.7, 0.1],
+            [100, 100, 0.8, 0.1],
+            [100, 100, 0.9, 0.1],
+            [100, 100, 1.0, 0.1],
+        ])
+
+        y = np.array([
+            0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0
+        ])
+
+        sabr = SABR(0.1, 0.5, 0.1, 0.1)
+        print(sabr.fit(x, y))
+
+    test_fit()
 
 
 if __name__ == '__main__':

@@ -62,9 +62,6 @@ class VolatilityDataset(Dataset):
         :param date: date
         :return:
         """
-        # return self.data[
-        #     (self.data["maturity"] >= maturity[0]) & (self.data["maturity"] <= maturity[1]) &
-        #     (self.data["strike"] >= strike[0]) & (self.data["strike"] <= strike[1])]
         return self.data[
             (self.data["maturity"] >= maturity[0]) & (self.data["maturity"] <= maturity[1]) &
             (self.data["strike"] >= strike[0]) & (self.data["strike"] <= strike[1]) &
