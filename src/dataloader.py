@@ -71,7 +71,7 @@ class VolatilityDataset(Dataset):
             (self.data["dt"] == date)]
 
     def __len__(self):
-        return len(self.data)
+        return len(self.dates)
 
     def __getitem__(self, idx):
         # useful columns = S (underlying price), K (strike price), T (time to maturity),
@@ -80,7 +80,7 @@ class VolatilityDataset(Dataset):
 
         data = self.data[self.data["dt"] == date]
 
-        return data[["underlying", "strike", "maturity", "iv"]].values
+        return data[["underlying", "strike", "maturity", "r", "d"]].values, data["iv"].values
 
 
 class Dataviewer:
