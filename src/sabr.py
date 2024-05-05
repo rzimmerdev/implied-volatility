@@ -11,7 +11,6 @@ class SABR:
         self.rho = rho
         self.volvol = volvol
 
-
     @staticmethod
     def forward(s, t, r: float, d: float = 0):
         return s * np.exp(r * t - d)
