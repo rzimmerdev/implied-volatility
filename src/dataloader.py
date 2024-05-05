@@ -1,7 +1,9 @@
 import os
 import zipfile
 
+import numpy as np
 import pandas as pd
+import pandas_datareader as pdr
 import matplotlib.pyplot as plt
 import matplotlib
 from torch.utils.data import Dataset
@@ -14,8 +16,9 @@ class VolatilityDataset(Dataset):
         self.file = file
 
         self.data: pd.DataFrame = pd.DataFrame()
+        self.dates = []
 
-    def load(self, file=None):
+    def load(self, file=None, ticker="SPY"):
         if not os.path.exists(self.path):
             os.makedirs(self.path)
         # test if zip is unpacked by checking if
@@ -27,25 +30,32 @@ class VolatilityDataset(Dataset):
         self.data = pd.read_csv(f"{self.path}/{file}")
         self.preprocess()
 
+        start_date = self.data["dt"].min()
+        end_date = self.data["dt"].max()
+
+        # risk-free rate
+        r = pdr.get_data_fred('DGS10', start=start_date, end=end_date) / 100
+        r = r.ffill().reindex(self.data["dt"]).values
+        # dividend yield for spy
+        d = np.array([1.33 / 100] * len(self.data))
+
+        self.data["r"] = r
+        self.data["d"] = d
+
     def preprocess(self):
         # divide daysToExpiration by calendar days
         self.data["maturity"] = self.data["daysToExpiration"] / 360
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        return self.data.iloc[idx]
+        self.dates = self.data["dt"].unique()
 
     def get(self, maturity: tuple, strike: tuple, date: str):
         """
         [5 rows x 34 columns]
-        Index(['14d', '30d', '3d', '5d', '60d', '7d', 'ask', 'bid', 'bs',
-       'daysToExpiration', 'delta', 'dist', 'dist_pct', 'dt', 'expr',
-       'extrinsic', 'extrinsic_pct', 'gamma', 'inTheMoney', 'intrinsic',
-       'intrinsic_pct', 'iv', 'mark', 'openInterest', 'rho', 'strike',
-       'theoreticalOptionValue', 'theoreticalVolatility', 'theta', 'timeValue',
-       'underlying', 'vega', 'volatility', 'prev_iv'],
+        Index(['14d', '30d', '3d', '5d', '60d', '7d',
+        'ask', 'bid', 'bs', 'daysToExpiration', 'delta', 'dist', 'dist_pct', 'dt', 'expr',
+        'extrinsic', 'extrinsic_pct', 'gamma', 'inTheMoney', 'intrinsic',
+        'intrinsic_pct', 'iv', 'mark', 'openInterest', 'rho', 'strike',
+        'theoreticalOptionValue', 'theoreticalVolatility', 'theta', 'timeValue',
+        'underlying', 'vega', 'volatility', 'prev_iv'],
       dtype='object')
         :param maturity: interval of maturity
         :param strike: interval of strike
@@ -59,6 +69,18 @@ class VolatilityDataset(Dataset):
             (self.data["maturity"] >= maturity[0]) & (self.data["maturity"] <= maturity[1]) &
             (self.data["strike"] >= strike[0]) & (self.data["strike"] <= strike[1]) &
             (self.data["dt"] == date)]
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        # useful columns = S (underlying price), K (strike price), T (time to maturity),
+        # r (risk free rate), d (dividend rate), IV (implied volatility)
+        date = self.dates[idx]
+
+        data = self.data[self.data["dt"] == date]
+
+        return data[["underlying", "strike", "maturity", "iv"]].values
 
 
 class Dataviewer:
@@ -84,6 +106,7 @@ class Dataviewer:
 
 if __name__ == "__main__":
     dataset = VolatilityDataset()
+    # https://www.kaggle.com/datasets/shawlu/option-spy-dataset-combinedcsv
     dataset.load("option_SPY_dataset_combined.csv")
     print(dataset.data.head())
     print(dataset.data.columns)
