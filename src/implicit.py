@@ -1,7 +1,6 @@
-import time
-
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 # Anderson Optimizator for fixed point process, for implicit neural networks
@@ -19,6 +18,7 @@ def anderson(f, x0, m=5, lam=1e-4, max_iter=50, tol=1e-2, beta=1.0):
     y[:, 0] = 1
 
     res = []
+    k = 1
     for k in range(2, max_iter):
         n = min(k, m)
         G = F[:, :n] - X[:, :n]
@@ -35,54 +35,40 @@ def anderson(f, x0, m=5, lam=1e-4, max_iter=50, tol=1e-2, beta=1.0):
     return X[:, k % m].view_as(x0), res
 
 
-def forward_iteration(f, x0, max_iter=50, tol=1e-2):
-    f0 = f(x0)
-    res = []
-    for k in range(max_iter):
-        x = f0
-        f0 = f(x)
-        res.append((f0 - x).norm().item() / (1e-5 + f0.norm().item()))
-        if (res[-1] < tol):
-            break
-    return f0, res
+class ImplicitLinear(nn.Module):
+    def __init__(self, in_features, out_features, f: callable, *arg, **kwargs):
+        super().__init__(*arg, **kwargs)
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = nn.Parameter(torch.Tensor(out_features, in_features))
+        self.bias = nn.Parameter(torch.Tensor(out_features))
 
+        self.linear = nn.Linear(in_features, out_features)
+        self.f = f
 
-# Compare forward with anderson for a simple CNN
-class CNN(nn.Module):
-    def __init__(self, n_channels, hidden_size, kernel_size=3, num_groups=8):
-        super().__init__()
-        self.conv1 = nn.Conv2d(n_channels, hidden_size, kernel_size, padding=kernel_size // 2, bias=False)
-        self.conv2 = nn.Conv2d(hidden_size, n_channels, kernel_size, padding=kernel_size // 2, bias=False)
-        self.norm1 = nn.GroupNorm(num_groups, hidden_size)
-        self.norm2 = nn.GroupNorm(num_groups, n_channels)
-        self.norm3 = nn.GroupNorm(num_groups, n_channels)
-        self.conv1.weight.data.normal_(0, 0.01)
-        self.conv2.weight.data.normal_(0, 0.01)
-        self.relu = nn.ReLU()
+    def forward(self, x):
+        with torch.no_grad():
+            # use anderson + self.f + self.linear to solve the implicit function
+            def f_(x):
+                return self.linear(x)
 
-    def forward(self, z, x):
-        y = self.norm1(self.relu(self.conv1(z)))
-        return self.norm3(self.relu(z + self.norm2(x + self.conv2(y))))
+            x, _ = anderson(f_, x, m=5, lam=1e-4, max_iter=50, tol=1e-2, beta=1.0)
+
+        return F.linear(x, self.weight, self.bias)
 
 
 def main():
-    # compare forward iteration with anderson acceleration
-    X = torch.randn(10, 64, 32, 32)
-    f = CNN(64, 128)
+    l = ImplicitLinear(10, 20, torch.relu)
 
-    # initial guess
-    x0 = torch.zeros_like(X)
+    x = torch.randn(10, 10)
+    print(l(x).shape)
 
-    # forward iteration
-    initial_time = time.time()
-    result, res = forward_iteration(lambda Z: f(Z, X), x0)
-    print('Forward iteration time: ', time.time() - initial_time)
+    y = torch.randn(10, 20)
 
-    # anderson acceleration
-    initial_time = time.time()
-    result, res = anderson(lambda Z: f(Z, X), x0)
-    print('Anderson acceleration time: ', time.time() - initial_time)
+    loss = F.mse_loss(l(x), y)
+
+    print(loss)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
