@@ -4,45 +4,49 @@ from torch import optim
 
 
 class SelfAttention(nn.Module):
-    def __init__(self, embed_size, heads):
+    """
+    Attention for the transformer model
+    Accepts continuous data
+
+    """
+    def __init__(self, in_features, heads):
         super(SelfAttention, self).__init__()
-        self.embed_size = embed_size
+        self.head_dim = in_features // heads
+        self.in_features = in_features
         self.heads = heads
-        self.head_dim = embed_size // heads
 
-        assert (
-                self.head_dim * heads == embed_size
-        ), "Embedding size needs to be divisible by heads"
+        assert (self.head_dim * heads == in_features)
 
-        self.values = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.keys = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.queries = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.fc_out = nn.Linear(heads * self.head_dim, embed_size)
+        self.W_v = nn.Linear(self.head_dim, self.head_dim, bias=False)
+        self.W_k = nn.Linear(self.head_dim, self.head_dim, bias=False)
+        self.W_q = nn.Linear(self.head_dim, self.head_dim, bias=False)
 
-    def forward(self, values, keys, query, mask):
+        self.seq = nn.Sequential(
+            nn.Linear(in_features, in_features),
+            nn.ReLU(),
+            nn.Linear(in_features, in_features)
+        )
+
+    def forward(self, value, key, query, mask=None):
         N = query.shape[0]
-        value_len, key_len, query_len = values.shape[1], keys.shape[1], query.shape[1]
+        value_len, key_len, query_len = value.shape[1], key.shape[1], query.shape[1]
 
-        values = values.reshape(N, value_len, self.heads, self.head_dim)
-        keys = keys.reshape(N, key_len, self.heads, self.head_dim)
-        queries = query.reshape(N, query_len, self.heads, self.head_dim)
+        value = value.reshape(N, value_len, self.heads, self.head_dim)
+        key = key.reshape(N, key_len, self.heads, self.head_dim)
+        query = query.reshape(N, query_len, self.heads, self.head_dim)
 
-        values = self.values(values)
-        keys = self.keys(keys)
-        queries = self.queries(queries)
+        values = self.W_v(value)
+        keys = self.W_k(key)
+        queries = self.W_q(query)
 
-        # Scaled dot-product attention
-        energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])  # (N, heads, query_len, key_len)
+        # (N, value_len, heads, head_dim) * (N, key_len, heads, head_dim) -> (N, heads, value_len, key_len)
+        energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])
         if mask is not None:
             energy = energy.masked_fill(mask == 0, float("-1e20"))
 
-        attention = torch.nn.functional.softmax(energy / (self.embed_size ** (1 / 2)), dim=3)
-
-        out = torch.einsum("nhql,nlhd->nqhd", [attention, values]).reshape(
-            N, query_len, self.heads * self.head_dim
-        )  # (N, query_len, embed_size)
-
-        out = self.fc_out(out)
+        attention = torch.softmax(energy / (self.head_dim ** (1 / 2)), dim=3)
+        # (N, heads, query_len, key_len) * (N, value_len, heads, head_dim) -> (N, query_len, heads, head_dim)
+        out = torch.einsum("nhql,nlhd->nqhd", [attention, values]).reshape(N, query_len, self.in_features)
         return out
 
 
@@ -56,92 +60,56 @@ class TransformerBlock(nn.Module):
         self.feed_forward = nn.Sequential(
             nn.Linear(in_features, forward_expansion * in_features),
             nn.ReLU(),
-            nn.Linear(forward_expansion * in_features, in_features),
+            nn.Linear(forward_expansion * in_features, in_features)
         )
 
-    def forward(self, value, key, query, mask):
+    def forward(self, value, key, query, mask=None):
         attention = self.attention(value, key, query, mask)
 
-        # Add skip connection, run through normalization and dropout
-        x = self.dropout(self.norm1(attention + query))
+        x = self.norm1(attention + value)
         forward = self.feed_forward(x)
-        return self.norm2(forward + x)
+        out = self.norm2(forward + x)
+        return out
 
 
 class Transformer(nn.Module):
-    def __init__(
-            self,
-            in_features,
-            out_features,
-            heads,
-            num_layers,
-            forward_expansion,
-            device,
-    ):
+    def __init__(self, in_features, heads, num_layers, out_features, forward_expansion=None, dropout=None):
         super(Transformer, self).__init__()
-        self.device = device
+        if forward_expansion is None:
+            forward_expansion = 4
+        if dropout is None:
+            dropout = 1e-6
 
-        self.layers = nn.ModuleList(
-            [
-                TransformerBlock(in_features, heads, forward_expansion=forward_expansion)
-                for _ in range(num_layers)
-            ]
-        )
+        self.layers = nn.ModuleList([
+            TransformerBlock(in_features, heads, forward_expansion) for _ in range(num_layers)
+        ])
 
-        self.fc_out = nn.Linear(in_features, out_features)
+        self.fc = nn.Linear(in_features, out_features)
+        self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x):
-        out = None
-
+    def forward(self, value, key, query, mask=None):
         for layer in self.layers:
-            out = layer(x, out, out)
-
-        out = self.fc_out(out)
+            value = layer(value, key, query, mask)
+        out = self.fc(value)
         return out
 
 
 def main():
-    max_length = 5
-    heads = 2
-    num_layers = 1
-    forward_expansion = 4
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    x = torch.rand(64, 10, 256)
+    y = torch.rand(64, 10, 256)
 
-    # Create a sample input sequence
-    x = torch.tensor([[1, 2, 3, 4, 0]]).to(device)
-    y_hat = torch.tensor([[2, 3, 4, 0, 0]]).to(device)
+    model = Transformer(256, 8, 4, 256)
 
-    in_features = len(x[0])
-    out_features = len(y_hat[0])
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-6)
 
-    # Create the Transformer model
-    model = Transformer(
-        in_features,
-        out_features,
-        heads,
-        num_layers,
-        forward_expansion,
-        device,
-    ).to(device)
-
-    # Define loss function and optimizer
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-    # Training loop
-    def train_model(model, x, optimizer, criterion, num_epochs=10):
-        model.train()
-        for epoch in range(num_epochs):
-            optimizer.zero_grad()
-            output = model(x)
-            # loss = criterion(output.reshape(-1, vocab_size), input_sequence.reshape(-1))
-            # loss.backward()
-            optimizer.step()
-            # if (epoch + 1) % 10 == 0:
-            #     print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
-
-    # Test the model
-    train_model(model, x, optimizer, criterion)
+    for epoch in range(10):
+        optimizer.zero_grad()
+        output = model(x, x, x)
+        loss = criterion(output, y)
+        loss.backward()
+        optimizer.step()
+        print(f"Epoch {epoch} loss: {loss.item()}")
 
 
 if __name__ == "__main__":
