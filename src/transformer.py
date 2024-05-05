@@ -47,19 +47,17 @@ class SelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, embed_size, heads, dropout, forward_expansion):
+    def __init__(self, in_features, heads, forward_expansion):
         super(TransformerBlock, self).__init__()
-        self.attention = SelfAttention(embed_size, heads)
-        self.norm1 = nn.LayerNorm(embed_size)
-        self.norm2 = nn.LayerNorm(embed_size)
+        self.attention = SelfAttention(in_features, heads)
+        self.norm1 = nn.LayerNorm(in_features)
+        self.norm2 = nn.LayerNorm(in_features)
 
         self.feed_forward = nn.Sequential(
-            nn.Linear(embed_size, forward_expansion * embed_size),
+            nn.Linear(in_features, forward_expansion * in_features),
             nn.ReLU(),
-            nn.Linear(forward_expansion * embed_size, embed_size),
+            nn.Linear(forward_expansion * in_features, in_features),
         )
-
-        self.dropout = nn.Dropout(dropout)
 
     def forward(self, value, key, query, mask):
         attention = self.attention(value, key, query, mask)
@@ -67,76 +65,62 @@ class TransformerBlock(nn.Module):
         # Add skip connection, run through normalization and dropout
         x = self.dropout(self.norm1(attention + query))
         forward = self.feed_forward(x)
-        out = self.dropout(self.norm2(forward + x))
-        return out
+        return self.norm2(forward + x)
 
 
 class Transformer(nn.Module):
     def __init__(
             self,
-            embed_size,
+            in_features,
+            out_features,
             heads,
             num_layers,
             forward_expansion,
-            dropout,
-            max_length,
-            vocab_size,
             device,
     ):
         super(Transformer, self).__init__()
-        self.embed_size = embed_size
         self.device = device
-
-        self.token_embeddings = nn.Embedding(vocab_size, embed_size)
-        self.position_embeddings = nn.Embedding(max_length, embed_size)
 
         self.layers = nn.ModuleList(
             [
-                TransformerBlock(embed_size, heads, dropout=dropout, forward_expansion=forward_expansion)
+                TransformerBlock(in_features, heads, forward_expansion=forward_expansion)
                 for _ in range(num_layers)
             ]
         )
 
-        self.fc_out = nn.Linear(embed_size, vocab_size)
-        self.dropout = nn.Dropout(dropout)
-        self.max_length = max_length
+        self.fc_out = nn.Linear(in_features, out_features)
 
-    def forward(self, x, mask):
-        N, seq_length = x.shape
-        positions = torch.arange(0, seq_length).expand(N, seq_length).to(self.device)
-
-        out = self.dropout(self.token_embeddings(x) + self.position_embeddings(positions))
+    def forward(self, x):
+        out = None
 
         for layer in self.layers:
-            out = layer(out, out, out, mask)
+            out = layer(x, out, out)
 
         out = self.fc_out(out)
         return out
 
 
 def main():
-    vocab_size = 10
     max_length = 5
-    embed_size = 64
     heads = 2
     num_layers = 1
     forward_expansion = 4
-    dropout = 0.5
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Create a sample input sequence
-    input_sequence = torch.randint(0, vocab_size, (1, max_length)).to(device)
-    mask = torch.ones(1, max_length).to(device)  # Mask for padding tokens
+    x = torch.tensor([[1, 2, 3, 4, 0]]).to(device)
+    y_hat = torch.tensor([[2, 3, 4, 0, 0]]).to(device)
+
+    in_features = len(x[0])
+    out_features = len(y_hat[0])
 
     # Create the Transformer model
     model = Transformer(
-        embed_size,
+        in_features,
+        out_features,
         heads,
         num_layers,
         forward_expansion,
-        dropout,
-        max_length,
-        vocab_size,
         device,
     ).to(device)
 
@@ -145,19 +129,19 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # Training loop
-    def train_model(model, input_sequence, mask, optimizer, criterion, num_epochs=10):
+    def train_model(model, x, optimizer, criterion, num_epochs=10):
         model.train()
         for epoch in range(num_epochs):
             optimizer.zero_grad()
-            output = model(input_sequence, mask)
-            loss = criterion(output.reshape(-1, vocab_size), input_sequence.reshape(-1))
-            loss.backward()
+            output = model(x)
+            # loss = criterion(output.reshape(-1, vocab_size), input_sequence.reshape(-1))
+            # loss.backward()
             optimizer.step()
-            if (epoch + 1) % 10 == 0:
-                print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
+            # if (epoch + 1) % 10 == 0:
+            #     print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
 
     # Test the model
-    train_model(model, input_sequence, mask, optimizer, criterion)
+    train_model(model, x, optimizer, criterion)
 
 
 if __name__ == "__main__":

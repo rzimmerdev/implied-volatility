@@ -4,6 +4,29 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
 
+class Helper:
+    @staticmethod
+    def forward(s, t, r: float, d: float = 0):
+        return s * np.exp(r * t - d)
+
+    @staticmethod
+    def z(alpha, beta, volvol, f, k, t, rho):
+        return volvol / alpha * (f * k) ** ((1 - beta) / 2) * np.log(f / k)
+
+    @staticmethod
+    def x(alpha, beta, volvol, f, k, rho):
+        return np.log((np.sqrt(1 - 2 * rho *
+                               Helper.z(alpha, beta, volvol, f, k, 0, rho) +
+                               Helper.z(alpha, beta, volvol, f, k, 0, rho) ** 2) +
+                       Helper.z(alpha, beta, volvol, f, k, 0, rho) - rho) / (1 - rho))
+
+    @staticmethod
+    def ivol(alpha, beta, rho, volvol, s, k, t, r, d=0):
+        f = Helper.forward(s, t, r, d)
+        return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (Helper.x(alpha, beta, volvol, f, k, rho) ** 2) / 24 +
+                                                      (Helper.x(alpha, beta, volvol, f, k, rho) ** 4) / 1920)
+
+
 class SABR:
     def __init__(self, alpha, beta, rho, volvol: float = 0):
         self.alpha = alpha
@@ -11,21 +34,7 @@ class SABR:
         self.rho = rho
         self.volvol = volvol
 
-    @staticmethod
-    def forward(s, t, r: float, d: float = 0):
-        return s * np.exp(r * t - d)
-
-    def z(self, f, k, t):
-        return self.volvol / self.alpha * (f * k) ** ((1 - self.beta) / 2) * np.log(f / k)
-
-    def x(self, f, k):
-        return np.log((np.sqrt(1 - 2 * self.rho * self.z(f, k, 0) + self.z(f, k, 0) ** 2) + self.z(f, k, 0) - self.rho) / (1 - self.rho))
-
-    def ivol(self, s, k, t, r, d=0):
-        f = self.forward(s, t, r, d)
-        return self.alpha * (f * k) ** ((1 - self.beta) / 2) * (1 + (self.x(f, k) ** 2) / 24 + (self.x(f, k) ** 4) / 1920)
-
-    def fit(self, s, k, t, iv):
+    def fit(self, x, y):
         """
         :param s: spot price
         :param k: strike
@@ -33,16 +42,30 @@ class SABR:
         :param iv: implied volatility
         :return: alpha, beta, rho
         """
-        def error(x):
-            return np.sum((self.ivol(s, k, t, 0, 0) - iv) ** 2)
 
-        x0 = np.array([self.alpha, self.beta, self.rho])
-        bounds = [(0, None), (0, 1), (-1, 1)]
+        # def error(x):
+        #     return np.sum((self.ivol(*x) - y) ** 2)
+        #
+        # x0 = np.array([self.alpha, self.beta, self.rho])
+        # bounds = [(0, None), (0, 1), (-1, 1)]
+        #
+        # res = minimize(error, x0, method='L-BFGS-B', bounds=bounds)
+        # self.alpha, self.beta, self.rho = res.x
+        #
+        # return self.alpha, self.beta, self.rho
 
-        res = minimize(error, x0, method='L-BFGS-B', bounds=bounds)
-        self.alpha, self.beta, self.rho = res.x
+        # fit self.alpha, self.beta, self.rho, self.volvol to minimize the error
+        def error(i):
+            # i = (self.alpha, self.beta, self.rho, self.volvol)
+            return np.sum((Helper.ivol(*i, x[:, 0], x[:, 1], x[:, 2], x[:, 3]) - y) ** 2)
 
-        return self.alpha, self.beta, self.rho
+        i0 = np.array([self.alpha, self.beta, self.rho, self.volvol])
+        bounds = [(0, None), (0, 1), (-1, 1), (0, None)]
+
+        res = minimize(error, i0, method='L-BFGS-B', bounds=bounds)
+
+        self.alpha, self.beta, self.rho, self.volvol = res.x
+        return self.alpha, self.beta, self.rho, self.volvol
 
     def preview(self, r, d=0):
         s = 100

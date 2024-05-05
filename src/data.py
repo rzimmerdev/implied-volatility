@@ -18,7 +18,7 @@ class VolatilityDataset(Dataset):
         self.data: pd.DataFrame = pd.DataFrame()
         self.dates = []
 
-    def load(self, file=None, ticker="SPY"):
+    def load(self, file=None):
         if not os.path.exists(self.path):
             os.makedirs(self.path)
         # test if zip is unpacked by checking if
