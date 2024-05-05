@@ -84,21 +84,28 @@ class Dataviewer:
     def __init__(self):
         matplotlib.use('TkAgg')
 
-    def view_surface(self, df):
+    def plot(self, df):
         df = df.dropna().drop_duplicates()
         x = df["strike"].values
         y = df["maturity"].values
         z = df["iv"].values
 
+        plot(x, y, z)
+
+
+def plot(k, t, ivol, ax=None, cmap='viridis'):
+    fig = None
+    if ax is None:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        ax.plot_trisurf(x, y, z, cmap='viridis')
+    ax.plot_trisurf(k, t, ivol, cmap=cmap)
 
-        ax.set_xlabel('Strike')
-        ax.set_ylabel('Maturity')
-        ax.set_zlabel('IV')
+    ax.set_xlabel('Strike')
+    ax.set_ylabel('Maturity')
+    ax.set_zlabel('IV')
 
-        plt.show()
+    return fig, ax
+
 
 
 if __name__ == "__main__":

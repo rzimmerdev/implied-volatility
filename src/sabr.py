@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import numpy as np
 from scipy.optimize import minimize
 
@@ -28,6 +30,15 @@ class Helper:
         return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (Helper.x(alpha, beta, volvol, f, k, rho) ** 2) / 24 +
                                                       (Helper.x(alpha, beta, volvol, f, k, rho) ** 4) / 1920)
 
+    @staticmethod
+    def ivol_vectorized(params, x):
+        alpha, beta, rho, volvol = params
+        s, k, t, r, d = x.T
+        if d is None:
+            d = [0] * len(t)
+        f = Helper.forward(s, t, r, d)
+        x = Helper.x(alpha, beta, volvol, f, k, rho)
+        return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (x ** 2) / 24 + (x ** 4) / 1920)
 
 class SABR:
     def __init__(self, alpha, beta, rho, volvol: float = 0):
@@ -39,13 +50,9 @@ class SABR:
     def fit(self, x, y):
         def error(i):
             with np.errstate(divide='raise'):
-                try:
-                    return np.sum((Helper.ivol(*i, x[:, 0], x[:, 1], x[:, 2], x[:, 3]) - y) ** 2)
-                except Exception:
-                    print(f"Unable to calculate for {i}")
-                    return 1e6
+                return np.sum((Helper.ivol_vectorized(i, x) - y) ** 2)
         i0 = np.array([self.alpha, self.beta, self.rho, self.volvol])
-        bounds = [(1e-16, None), (1e-16, 1), (-1, 1), (0, None)]
+        bounds = [(1e-16, None), (1e-16, 1), (-1 + 1e-9, 1 - 1e-9), (0, None)]
 
         res = minimize(error, i0, method='L-BFGS-B', bounds=bounds)
 
@@ -55,12 +62,21 @@ class SABR:
     def ivol(self, s, k, t, r, d=0):
         return Helper.ivol(self.alpha, self.beta, self.rho, self.volvol, s, k, t, r, d)
 
-    def preview(self, r, d=0):
-        s = 100
-        t = np.linspace(0.1, 2, 10)
-        k = np.array([
-            np.linspace(80, 120, 100) for _ in t
-        ])
+    def __call__(self, x):
+        s, k, t, r, d = x.T
+        return self.ivol(s, k, t, r, d)
+
+    def preview(self, x) -> Tuple[float, np.ndarray, np.ndarray, np.ndarray]:
+        if x is None:
+            s = 100
+            t = np.linspace(0.1, 2, 10)
+            k = np.array([
+                np.linspace(80, 120, 100) for _ in t
+            ])
+            r = np.array([0.14] * len(t))
+            d = np.array([0.1] * len(t))
+        else:
+            s, k, t, r, d = x.T
 
         ivol = np.array([
             [self.ivol(s, strike, maturity, r) for strike in k[i]] for i, maturity in enumerate(t)
@@ -91,7 +107,7 @@ def plot_3d(A, B, r):
             sabr = SABR(a, b, r, 0.1)
             # ignore pycharm warning
             # noinspection PyTypeChecker
-            _, K, T, IV = sabr.preview(r)
+            _, K, T, IV = sabr.preview()
             ax.plot_trisurf(K, T, IV, cmap='viridis')
             plot_index += 1
 
@@ -104,7 +120,7 @@ def plot_3d(A, B, r):
 
 def plot_2d(a, b, r):
     sabr = SABR(a, b, r, 0.1)
-    _, K, T, IV = sabr.preview(r)
+    _, K, T, IV = sabr.preview()
 
     # plot 2d cuts of the 3d surface
     # choose h and w to be closer to a square
