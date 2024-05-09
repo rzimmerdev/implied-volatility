@@ -1,191 +1,160 @@
-from typing import Tuple
-
 import numpy as np
+from matplotlib import pyplot as plt
 from scipy.optimize import minimize
 
-import matplotlib.pyplot as plt
 
+class SABRModel:
+    @classmethod
+    def forward(cls, t, s, r, d: float = 0.0):
+        return s * np.exp((r - d) * t)
 
-class Helper:
-    @staticmethod
-    def forward(s, t, r: float, d: float = 0):
-        return s * np.exp(r * t - d)
-
-    @staticmethod
-    def z(alpha, beta, volvol, f, k, t, rho):
+    @classmethod
+    def z(cls, volvol, alpha, beta, f, k):
         return volvol / alpha * (f * k) ** ((1 - beta) / 2) * np.log(f / k)
 
-    @staticmethod
-    def x(alpha, beta, volvol, f, k, rho):
-        return np.log((np.sqrt(1 - 2 * rho *
-                               Helper.z(alpha, beta, volvol, f, k, 0, rho) +
-                               Helper.z(alpha, beta, volvol, f, k, 0, rho) ** 2) +
-                       Helper.z(alpha, beta, volvol, f, k, 0, rho) - rho) / (1 - rho))
+    @classmethod
+    def x(cls, volvol, alpha, beta, f, k, rho):
+        return np.log((np.sqrt(1 - 2 * rho * cls.z(volvol, alpha, beta, f, k) + cls.z(volvol, alpha, beta, f, k) ** 2) +
+                       cls.z(volvol, alpha, beta, f, k) - rho) / (1 - rho))
 
-    @staticmethod
-    def ivol(alpha, beta, rho, volvol, s, k, t, r, d=None):
-        if d is None:
-            d = [0] * len(t)
-        f = Helper.forward(s, t, r, d)
-        return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (Helper.x(alpha, beta, volvol, f, k, rho) ** 2) / 24 +
-                                                      (Helper.x(alpha, beta, volvol, f, k, rho) ** 4) / 1920)
+    @classmethod
+    def ivol(cls, alpha, beta, rho, volvol, s, k, t, r, d: float = 0.0):
+        f = cls.forward(t, s, r, d)
+        return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (cls.x(volvol, alpha, beta, f, k, rho) ** 2) / 24 +
+                                                      (cls.x(volvol, alpha, beta, f, k, rho) ** 4) / 1920)
 
-    @staticmethod
-    def ivol_vectorized(params, x):
-        alpha, beta, rho, volvol = params
+    @classmethod
+    def ivol_vectorized(cls, i, x):
+        alpha, beta, rho, volvol = i
         s, k, t, r, d = x.T
-        if d is None:
-            d = [0] * len(t)
-        f = Helper.forward(s, t, r, d)
-        x = Helper.x(alpha, beta, volvol, f, k, rho)
+
+        f = cls.forward(t, s, r, d)
+        x = cls.x(volvol, alpha, beta, f, k, rho)
         return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (x ** 2) / 24 + (x ** 4) / 1920)
 
+    @classmethod
+    def fit(cls, initial_guess, x, y):
+        def error(i):
+            try:
+                with np.errstate(divide='raise'):
+                    return np.sum((cls.ivol_vectorized(i, x) - y) ** 2)
+            except FloatingPointError:
+                print(i)
+                return 1e9
+
+        i0 = np.array(initial_guess)
+        bounds = [(1e-16, None), (1e-16, 1), (-1 + 1e-9, 1 - 1e-9), (0, None)]
+
+        res = minimize(error, i0, method='L-BFGS-B', bounds=bounds)
+
+        return SABR(*res.x)
+
+
 class SABR:
-    def __init__(self, alpha, beta, rho, volvol: float = 0):
+    def __init__(self, alpha, beta, rho, volvol):
         self.alpha = alpha
         self.beta = beta
         self.rho = rho
         self.volvol = volvol
 
-    def fit(self, x, y):
-        def error(i):
-            with np.errstate(divide='raise'):
-                return np.sum((Helper.ivol_vectorized(i, x) - y) ** 2)
-        i0 = np.array([self.alpha, self.beta, self.rho, self.volvol])
-        bounds = [(1e-16, None), (1e-16, 1), (-1 + 1e-9, 1 - 1e-9), (0, None)]
+    def ivol(self, s, k, t, r, d):
+        return SABRModel.ivol(self.alpha, self.beta, self.rho, self.volvol, s, k, t, r, d)
 
-        res = minimize(error, i0, method='L-BFGS-B', bounds=bounds)
+    def ivol_vectorized(self, x):
+        return SABRModel.ivol_vectorized([self.alpha, self.beta, self.rho, self.volvol], x)
 
-        self.alpha, self.beta, self.rho, self.volvol = res.x
-        return self.alpha, self.beta, self.rho, self.volvol
-
-    def ivol(self, s, k, t, r, d=0):
-        return Helper.ivol(self.alpha, self.beta, self.rho, self.volvol, s, k, t, r, d)
-
-    def __call__(self, x):
-        s, k, t, r, d = x.T
-        return self.ivol(s, k, t, r, d)
-
-    def preview(self, x) -> Tuple[float, np.ndarray, np.ndarray, np.ndarray]:
-        if x is None:
-            s = 100
-            t = np.linspace(0.1, 2, 10)
-            k = np.array([
-                np.linspace(80, 120, 100) for _ in t
-            ])
-            r = np.array([0.14] * len(t))
-            d = np.array([0.1] * len(t))
+    def __call__(self, *args, **kwargs):
+        if len(args) == 1:
+            return self.ivol_vectorized(*args, **kwargs)
         else:
-            s, k, t, r, d = x.T
-
-        ivol = np.array([
-            [self.ivol(s, strike, maturity, r) for strike in k[i]] for i, maturity in enumerate(t)
-        ])
-
-        # flatten K and IV, and make T the same size
-        t = np.array([
-            [maturity] * len(k[i]) for i, maturity in enumerate(t)
-        ]).flatten()
-
-        k = k.flatten()
-        ivol = ivol.flatten()
-
-        return s, k, t, ivol
+            return self.ivol(*args, **kwargs)
 
 
-def plot_3d(A, B, r):
-    # total graphs = 5 * 4 * 1 = 20
+class ParametricSABR:
+    def __init__(self, prev_tenor: dict):
+        self.raw_p = np.random.rand(5)
+        self.raw_q = np.random.rand(3)
+        self.raw_r = np.random.rand(4)
 
-    fig = plt.figure(figsize=(12, 12))
-    plot_index = 1
+        self.prev_tenors = prev_tenor
+        self.corrected_p = np.zeros(5)
+        self.corrected_q = np.zeros(3)
+        self.corrected_r = np.zeros(4)
 
-    for i, a in enumerate(A):
-        for j, b in enumerate(B):
-            # Create a new subplot for each combination of A and B
-            ax = fig.add_subplot(len(A), len(B), plot_index, projection='3d')
-            ax.set_title(f"a={a:.1f}, b={b:.1f}, r={r:.1f}")
-            sabr = SABR(a, b, r, 0.1)
-            # ignore pycharm warning
-            # noinspection PyTypeChecker
-            _, K, T, IV = sabr.preview()
-            ax.plot_trisurf(K, T, IV, cmap='viridis')
-            plot_index += 1
+    def p(self, t, candidates=None):
+        p = self.raw_p if candidates is None else candidates
+        return p[0] + p[3] / p[4] * (1 - np.exp(-p[4] * t)) / (p[4] * t) + p[1] / p[2] * np.exp(-p[2] * t)
 
-    plt.tight_layout()
-    plt.subplots_adjust(wspace=0.4, hspace=0.4)
-    # change subplots size
-    fig.set_size_inches(18.5, 16.5)
-    plt.show()
+    def q(self, t, candidates=None):
+        q = self.raw_q if candidates is None else candidates
+        return q[0] + q[1] * t + q[2] * np.exp(-q[3] * t)
 
+    def r(self, t, candidates=None):
+        r = self.raw_r if candidates is None else candidates
+        return r[0] + r[1] * np.power(t, r[2]) * np.exp(r[3] * t)
 
-def plot_2d(a, b, r):
-    sabr = SABR(a, b, r, 0.1)
-    _, K, T, IV = sabr.preview()
+    def corrected_params(self) -> list:  # shape: (prev_tenor_size, 3)
+        params = []
+        for tenor in self.prev_tenors.keys():
+            tenor = float(tenor)
+            params.append(
+                (self.p(tenor, self.corrected_p), self.q(tenor, self.corrected_q), self.r(tenor, self.corrected_r))
+            )
 
-    # plot 2d cuts of the 3d surface
-    # choose h and w to be closer to a square
+        return params
 
-    unique_T = np.unique(T)
+    @staticmethod
+    def param_star(func, size, t, candidates):
+        def error(p, candidate):
+            # p => 5,
+            # candidate => 5,n
+            return np.sum((func(t, p) - candidate) ** 2)
 
-    total_size = len(np.unique(T))
-    h = total_size // 2
-    w = 2
-    fig, ax = plt.subplots(h, w)
+        initial_guess = np.random.rand(size)
+        res = minimize(error, initial_guess, args=(candidates,), method='L-BFGS-B')
 
-    for i, t in enumerate(unique_T):
-        x = K[T == t]
-        y = IV[T == t]
+        return res.x
 
-        idx, idy = i // 2, i % 2
-        ax[idx, idy].plot(x, y)
-        ax[idx, idy].set_title(f"T={t:.1f}")
-        ax[idx, idy].set_xlabel('Strike')
-        ax[idx, idy].set_ylabel('IV')
+    def p_star(self, t, candidates):
+        return self.param_star(self.p, 5, t, candidates)
 
-    plt.tight_layout()
-    plt.subplots_adjust(wspace=0.4, hspace=0.4)
-    # change subplots size
-    fig.set_size_inches(18.5, 16.5)
-    plt.show()
+    def q_star(self, t, candidates):
+        return self.param_star(self.q, 3, t, candidates)
+
+    def r_star(self, t, candidates):
+        return self.param_star(self.r, 4, t, candidates)
+
+    def smooth_surface(self, K, T, star_params = None):
+
+        if star_params is None:
+            p = self.p_
+
+        for k in K:
+            for t in T:
+                alpha =
 
 
 def main():
-    # draw simple volatility smile
-    def test_plot():
-        import matplotlib
+    s = 100
+    k = np.linspace(80, 120, 100)
+    t = [0.1, 0.5, 1, 2, 3, 5, 7, 10]
+    r = 0.05
+    d = 0.02
 
-        matplotlib.use("TkAgg")
+    sabrs = []
 
-        A = np.arange(0.01, 0.4, 0.1)  # len = 5
-        B = np.arange(0.1, 0.5, 0.1)  # len = 4
-        r = 0.1
+    for i in range(len(t)):
+        x = np.array([[s, k, t[i], r, d] for k in k])
+        y = SABRModel.ivol(0.1, 0.5, 0.1, 0.1, s, k, t[i], r, d)
+        sabr = SABRModel.fit([0.1, 0.5, 0.1, 0.1], x, y)
+        sabrs.append(sabr)
 
-        plot_2d(0.1, 0.1, 0.1)
-        plot_3d(A, B, r)
-
-    def test_fit():
-        x = np.array([
-            [100, 100, 0.1, 0.1],
-            [100, 100, 0.2, 0.1],
-            [100, 100, 0.3, 0.1],
-            [100, 100, 0.4, 0.1],
-            [100, 100, 0.5, 0.1],
-            [100, 100, 0.6, 0.1],
-            [100, 100, 0.7, 0.1],
-            [100, 100, 0.8, 0.1],
-            [100, 100, 0.9, 0.1],
-            [100, 100, 1.0, 0.1],
-        ])
-
-        y = np.array([
-            0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0
-        ])
-
-        sabr = SABR(0.1, 0.5, 0.1, 0.1)
-        print(sabr.fit(x, y))
-
-    test_fit()
+    for i, sabr in enumerate(sabrs):
+        iv = np.array([sabr.ivol(s, strike, t[i], r, d) for strike in k])
+        plt.plot(k, iv, label=f"{t[i]}")
+    plt.legend()
+    plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

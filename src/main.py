@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 
-from sabr_refactor import SABR, SABRModel
+from sabr import SABRModel
 from data import VolatilityDataset, plot
 
 import torch
