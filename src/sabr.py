@@ -71,67 +71,66 @@ class SABR:
 
 
 class ParametricSABR:
-    def __init__(self, prev_tenor: dict):
-        self.raw_p = np.random.rand(5)
-        self.raw_q = np.random.rand(3)
-        self.raw_r = np.random.rand(4)
-
+    def __init__(self, prev_tenor: dict, rf, div):
         self.prev_tenors = prev_tenor
         self.corrected_p = np.zeros(5)
         self.corrected_q = np.zeros(3)
         self.corrected_r = np.zeros(4)
 
-    def p(self, t, candidates=None):
-        p = self.raw_p if candidates is None else candidates
+        self.rf = rf
+        self.div = div
+
+    def alpha(self, t, p):
         return p[0] + p[3] / p[4] * (1 - np.exp(-p[4] * t)) / (p[4] * t) + p[1] / p[2] * np.exp(-p[2] * t)
 
-    def q(self, t, candidates=None):
-        q = self.raw_q if candidates is None else candidates
+    def rho(self, t, q):
         return q[0] + q[1] * t + q[2] * np.exp(-q[3] * t)
 
-    def r(self, t, candidates=None):
-        r = self.raw_r if candidates is None else candidates
+    def volvol(self, t, r):
         return r[0] + r[1] * np.power(t, r[2]) * np.exp(r[3] * t)
 
-    def corrected_params(self) -> list:  # shape: (prev_tenor_size, 3)
+    def historical_params(self) -> list:  # shape: (prev_tenor_size, 3)
         params = []
         for tenor in self.prev_tenors.keys():
             tenor = float(tenor)
             params.append(
-                (self.p(tenor, self.corrected_p), self.q(tenor, self.corrected_q), self.r(tenor, self.corrected_r))
+                (self.alpha(tenor, self.corrected_p), self.rho(tenor, self.corrected_q), self.volvol(tenor, self.corrected_r))
             )
 
         return params
 
     @staticmethod
-    def param_star(func, size, t, candidates):
-        def error(p, candidate):
-            # p => 5,
-            # candidate => 5,n
-            return np.sum((func(t, p) - candidate) ** 2)
+    def param_star(func, size, candidates):  # Candidates \mathcal{S} = {(t, param^{t})}
+        def error(param):
+            return np.sum((func(candidates[:, 0], param) - candidates[:, 1]) ** 2)
 
         initial_guess = np.random.rand(size)
-        res = minimize(error, initial_guess, args=(candidates,), method='L-BFGS-B')
+        res = minimize(error, initial_guess, method='L-BFGS-B')
 
         return res.x
 
-    def p_star(self, t, candidates):
-        return self.param_star(self.p, 5, t, candidates)
+    def p_star(self, candidates):
+        return self.param_star(self.alpha, 5, candidates)
 
-    def q_star(self, t, candidates):
-        return self.param_star(self.q, 3, t, candidates)
+    def q_star(self, candidates):
+        return self.param_star(self.rho, 4, candidates)
 
-    def r_star(self, t, candidates):
-        return self.param_star(self.r, 4, t, candidates)
+    def r_star(self, candidates):
+        return self.param_star(self.volvol, 4, candidates)
 
-    def smooth_surface(self, K, T, star_params = None):
+    def smooth_surface(self, K, T, star_params):
+        beta = 0.5
 
-        if star_params is None:
-            p = self.p_
+        iv = np.zeros((len(T), len(K)))
 
-        for k in K:
-            for t in T:
-                alpha =
+        for idx, i in enumerate(T):
+            alpha = self.alpha(i, star_params["p"])
+            rho = self.rho(i, star_params["q"])
+            volvol = self.volvol(i, star_params["r"])
+
+            iv[idx] = SABRModel.ivol(alpha, beta, rho, volvol, 100, K, i, self.rf, self.div)  # shape: (len(K),)
+
+        return iv  # shape: (len(T), len(K))
 
 
 def main():
