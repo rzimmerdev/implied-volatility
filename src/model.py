@@ -23,7 +23,28 @@ class SSV:  # SS value model
 
         return combinations
 
+    def p_coefficients(self, S_alpha, alpha_s):
+        def objective(p):
+            errors = self.sabr.alpha(S_alpha, p) - alpha_s
+            return np.sum(errors**2)
+        
+        initial_guess = np.zeros(4)
+        result = minimize(objective, initial_guess)
+        return result.x
+
+
+    def get_ssvalue(self, alpha_t, S_alpha, alpha_s, candidates):
+        combinations = self.mc_combinations(alpha_t, candidates)
+        losses = []
+        p_star = self.sabr.p_star(candidates)
+
+        for subset in combinations:
+            p_hat = self.p_coefficients(subset, alpha_s)
+            loss = np.sum(np.abs(self.sabr.alpha(S_alpha, p_hat) - self.sabr.alpha(S_alpha, p_star)))
+            losses.append(-loss)
+        
+        return np.mean(losses)
+
 
 class SST(SSV):  # SSV + Transformer
     pass
-
