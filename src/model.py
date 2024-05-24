@@ -10,40 +10,45 @@ class SSV:  # SS value model
     def __init__(self, sabr: ParametricSABR):
         self.sabr = sabr
 
-    def mc_combinations(self, alpha, candidates, n=1000, combination_size=5):
-        p_star = self.sabr.p_star(candidates)
+    def get_combinations(self, point, candidates, k=1000, p=0.4):
+        # param is alpha^{t} := (alpha, t)
+        # candidates is a np.array of shape (n, 2), dim 0 = alpha, rho or volvol, dim 1 = tenor
+        # generate k random combinations of size int(p * len(candidates)) that contain param[0]
+        combination_size = int(p * len(candidates))
 
-        # generate random combination sets such that alpha ∈ combination ∈ candidates
-        if alpha not in candidates:
-            raise ValueError(f"alpha {alpha} not in candidates {candidates}")
+        # Generate k random combinations of size combination_size that contain point
+        # Use numpy to get combinations without repetition in the same combination
+        combinations = np.zeros((k, combination_size, 2))
 
-        candidates_without_alpha = candidates[candidates != alpha]
-        combinations = np.random.choice(candidates_without_alpha, size=(n, combination_size - 1))
-        combinations = np.hstack((combinations, np.repeat(alpha, n).reshape(-1, 1)))
+        for i in range(k):
+            combinations[i] = np.random.choice(candidates[:, 0], size=combination_size, replace=False)
+            combinations[i][np.random.randint(0, combination_size)] = point
 
         return combinations
 
-    def p_coefficients(self, S_alpha, alpha_s):
-        def objective(p):
-            errors = self.sabr.alpha(S_alpha, p) - alpha_s
-            return np.sum(errors**2)
-        
-        initial_guess = np.zeros(4)
-        result = minimize(objective, initial_guess)
-        return result.x
+    @property
+    def param_tilde(self):
+        return self.sabr.param_star
+
+    def ss_value(self, point, candidates, func, size, k=1000, p=0.4):
+        sumation = 0
+
+        combinations = self.get_combinations(point, candidates, k, p)
+        p_star = self.sabr.param_star(func, size, candidates)
+
+        for combination in combinations:
+            p_tilde = self.param_tilde(func, size, combination)
+
+            sumation -= np.abs(
+                func(point[1], p_tilde) - func(point[1], p_star)
+            )
+
+        return sumation / k
+
+    def __getitem__(self, item):
 
 
-    def get_ssvalue(self, alpha_t, S_alpha, alpha_s, candidates):
-        combinations = self.mc_combinations(alpha_t, candidates)
-        losses = []
-        p_star = self.sabr.p_star(candidates)
 
-        for subset in combinations:
-            p_hat = self.p_coefficients(subset, alpha_s)
-            loss = np.sum(np.abs(self.sabr.alpha(S_alpha, p_hat) - self.sabr.alpha(S_alpha, p_star)))
-            losses.append(-loss)
-        
-        return np.mean(losses)
 
 
 class SST(SSV):  # SSV + Transformer
