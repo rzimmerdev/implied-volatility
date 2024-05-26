@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader
 from sabr import SABRModel
 from data import VolatilityDataset, plot
 
-import torch
 from torch import optim, nn
 from src.transformer import Transformer
 

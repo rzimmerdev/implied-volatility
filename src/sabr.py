@@ -71,7 +71,7 @@ class SABR:
 
 
 class ParametricSABR:
-    def __init__(self, prev_tenor: dict, rf, div):
+    def __init__(self, rf, div, prev_tenor: dict = None):
         self.prev_tenors = prev_tenor
         self.corrected_p = np.zeros(5)
         self.corrected_q = np.zeros(3)
@@ -81,7 +81,11 @@ class ParametricSABR:
         self.div = div
 
     def alpha(self, t, p):
-        return p[0] + p[3] / p[4] * (1 - np.exp(-p[4] * t)) / (p[4] * t) + p[1] / p[2] * np.exp(-p[2] * t)
+        try:
+            with np.errstate(invalid='raise', over='raise'):
+                return p[0] + p[3] / p[4] * (1 - np.exp(-p[4] * t)) / (p[4] * t) + p[1] / p[2] * np.exp(-p[2] * t)
+        except FloatingPointError:
+            return 1e-16
 
     def rho(self, t, q):
         return q[0] + q[1] * t + q[2] * np.exp(-q[3] * t)
@@ -102,7 +106,12 @@ class ParametricSABR:
     @staticmethod
     def param_star(func, size, candidates):  # Candidates \mathcal{S} = {(t, param^{t})}
         def error(param):
-            return np.sum((func(candidates[:, 0], param) - candidates[:, 1]) ** 2)
+            try:
+                with np.errstate(invalid='raise', over='raise'):
+                    err = np.sum((np.subtract(func(candidates[:, 0], param), candidates[:, 1])) ** 2)
+            except FloatingPointError:
+                err = 1e9
+            return err
 
         initial_guess = np.random.rand(size)
         res = minimize(error, initial_guess, method='L-BFGS-B')
