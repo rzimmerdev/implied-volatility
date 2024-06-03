@@ -9,3 +9,4 @@ paper/*.gz
 paper/*.aux
 
 *.csv
+lightning_logs/

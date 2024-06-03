@@ -107,7 +107,6 @@ def plot(k, t, ivol, ax=None, cmap='viridis'):
     return fig, ax
 
 
-
 if __name__ == "__main__":
     dataset = VolatilityDataset()
     # https://www.kaggle.com/datasets/shawlu/option-spy-dataset-combinedcsv
@@ -115,7 +114,9 @@ if __name__ == "__main__":
     print(dataset.data.head())
     print(dataset.data.columns)
 
-    data = dataset.get((0.0, 0.2), (300, 400), "2021-01-04")
+    data = dataset.get((-np.inf, np.inf), (300, 400), "2021-01-04")
+    item = dataset[0]
+    print(np.unique(dataset.dates).shape)
 
     viewer = Dataviewer()
-    viewer.view_surface(data)
+    viewer.plot(data)

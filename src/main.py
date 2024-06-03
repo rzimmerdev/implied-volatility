@@ -3,11 +3,11 @@ import numpy as np
 from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 
-from sabr import SABRModel
+from src.sabr.sabr import SABRModel
 from data import VolatilityDataset, plot
 
 from torch import optim, nn
-from src.transformer import Transformer
+from src.model.transformer import Transformer
 
 
 def main():

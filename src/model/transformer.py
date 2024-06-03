@@ -5,29 +5,23 @@ from torch import optim
 
 class SelfAttention(nn.Module):
     """
-    Attention for the transformer model
-    Accepts continuous data
-
+    Attention for the transformer model.
+    Accepts continuous data.
     """
+
     def __init__(self, in_features, heads):
         super(SelfAttention, self).__init__()
         self.head_dim = in_features // heads
         self.in_features = in_features
         self.heads = heads
 
-        assert (
-                self.head_dim * heads == in_features
-        )
+        assert self.head_dim * heads == in_features, "in_features must be divisible by heads"
 
         self.W_v = nn.Linear(self.head_dim, self.head_dim, bias=False)
         self.W_k = nn.Linear(self.head_dim, self.head_dim, bias=False)
         self.W_q = nn.Linear(self.head_dim, self.head_dim, bias=False)
 
-        self.seq = nn.Sequential(
-            nn.Linear(in_features, in_features),
-            nn.ReLU(),
-            nn.Linear(in_features, in_features)
-        )
+        self.fc_out = nn.Linear(in_features, in_features)
 
     def forward(self, value, key, query, mask=None):
         N = query.shape[0]
@@ -41,14 +35,14 @@ class SelfAttention(nn.Module):
         keys = self.W_k(key)
         queries = self.W_q(query)
 
-        # (N, value_len, heads, head_dim) * (N, key_len, heads, head_dim) -> (N, heads, value_len, key_len)
         energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])
         if mask is not None:
             energy = energy.masked_fill(mask == 0, float("-1e20"))
 
         attention = torch.softmax(energy / (self.head_dim ** (1 / 2)), dim=3)
-        # (N, heads, query_len, key_len) * (N, value_len, heads, head_dim) -> (N, query_len, heads, head_dim)
         out = torch.einsum("nhql,nlhd->nqhd", [attention, values]).reshape(N, query_len, self.in_features)
+
+        out = self.fc_out(out)
         return out
 
 
@@ -65,53 +59,53 @@ class TransformerBlock(nn.Module):
             nn.Linear(forward_expansion * in_features, in_features)
         )
 
-    def forward(self, value, key, query, mask=None):
-        attention = self.attention(value, key, query, mask)
-
-        x = self.norm1(attention + value)
+    def forward(self, x, mask=None):
+        attention = self.attention(x, x, x, mask)
+        x = self.norm1(attention + x)
         forward = self.feed_forward(x)
         out = self.norm2(forward + x)
         return out
 
 
-class Transformer(nn.Module):
-    def __init__(self, in_features, heads, num_layers, out_features, forward_expansion=None, dropout=None):
-        super(Transformer, self).__init__()
-        if forward_expansion is None:
-            forward_expansion = 4
-        if dropout is None:
-            dropout = 1e-6
-
+class TransformerEncoder(nn.Module):
+    def __init__(self, in_features, heads, num_layers, forward_expansion, dropout, out_features=None):
+        super(TransformerEncoder, self).__init__()
         self.layers = nn.ModuleList([
             TransformerBlock(in_features, heads, forward_expansion) for _ in range(num_layers)
         ])
-
-        self.fc = nn.Linear(in_features, out_features)
         self.dropout = nn.Dropout(dropout)
+        if out_features is not None:
+            self.fc_out = nn.Linear(in_features, out_features)
+        else:
+            self.fc_out = None
 
-    def forward(self, value, key, query, mask=None):
+    def forward(self, x, mask=None):
         for layer in self.layers:
-            value = layer(value, key, query, mask)
-        out = self.fc(value)
-        return out
+            x = layer(x, mask)
+        if self.fc_out is not None:
+            x = self.fc_out(x)
+        return x
 
 
 def main():
-    x = torch.rand(64, 10, 256)
-    y = torch.rand(64, 10, 256)
+    x = torch.rand(64, 11, 4)
+    y = torch.rand(64, 11, 1)
 
-    model = Transformer(256, 8, 4, 256)
+    model = TransformerEncoder(4, 1, 4, 4, 0.5, 1)
 
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-6)
 
     for epoch in range(10):
         optimizer.zero_grad()
-        output = model(x, x, x)
+        output = model(x)
         loss = criterion(output, y)
         loss.backward()
         optimizer.step()
         print(f"Epoch {epoch} loss: {loss.item()}")
+
+    print("Training finished")
+    print("Output shape:", output.shape)
 
 
 if __name__ == "__main__":

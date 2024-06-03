@@ -33,7 +33,7 @@ class SABRModel:
         return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (x ** 2) / 24 + (x ** 4) / 1920)
 
     @classmethod
-    def fit(cls, initial_guess, x, y):
+    def fit(cls, x, y, initial_guess = None):
         def error(i):
             try:
                 with np.errstate(divide='raise'):
@@ -42,12 +42,14 @@ class SABRModel:
                 print(i)
                 return 1e9
 
+        if initial_guess is None:
+            initial_guess = [0.1, 0.5, 0.1, 0.1]
         i0 = np.array(initial_guess)
         bounds = [(1e-16, None), (1e-16, 1), (-1 + 1e-9, 1 - 1e-9), (0, None)]
 
         res = minimize(error, i0, method='L-BFGS-B', bounds=bounds)
 
-        return SABR(*res.x)
+        return res.x
 
 
 class SABR:
@@ -72,7 +74,6 @@ class SABR:
 
 class ParametricSABR:
     def __init__(self, rf, div, prev_tenor: dict = None):
-        self.prev_tenors = prev_tenor
         self.corrected_p = np.zeros(5)
         self.corrected_q = np.zeros(3)
         self.corrected_r = np.zeros(4)
@@ -92,16 +93,6 @@ class ParametricSABR:
 
     def volvol(self, t, r):
         return r[0] + r[1] * np.power(t, r[2]) * np.exp(r[3] * t)
-
-    def historical_params(self) -> list:  # shape: (prev_tenor_size, 3)
-        params = []
-        for tenor in self.prev_tenors.keys():
-            tenor = float(tenor)
-            params.append(
-                (self.alpha(tenor, self.corrected_p), self.rho(tenor, self.corrected_q), self.volvol(tenor, self.corrected_r))
-            )
-
-        return params
 
     @staticmethod
     def param_star(func, size, candidates):  # Candidates \mathcal{S} = {(t, param^{t})}
@@ -154,7 +145,7 @@ def main():
     for i in range(len(t)):
         x = np.array([[s, k, t[i], r, d] for k in k])
         y = SABRModel.ivol(0.1, 0.5, 0.1, 0.1, s, k, t[i], r, d)
-        sabr = SABRModel.fit([0.1, 0.5, 0.1, 0.1], x, y)
+        sabr = SABR(*SABRModel.fit([0.1, 0.5, 0.1, 0.1], x, y))
         sabrs.append(sabr)
 
     for i, sabr in enumerate(sabrs):
