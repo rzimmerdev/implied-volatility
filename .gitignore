@@ -10,3 +10,4 @@ paper/*.aux
 
 *.csv
 lightning_logs/
+__pycache__/
