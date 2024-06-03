@@ -58,7 +58,7 @@ class SST(SSV, nn.Module):
 
         return inputs, target, candidates
 
-    def select_set(self, inputs: torch.Tensor, values: torch.Tensor, p=0.4):
+    def best_candidates(self, inputs, values, p=0.4):
         # use values to return only the top p% of the inputs
         n = len(inputs)
         top = int((1 - p) * n)
@@ -68,6 +68,9 @@ class SST(SSV, nn.Module):
 
     def forward(self, x):
         return self.transformer(x)
+
+    def param_star(self, func, size, candidates):
+        return self.sabr.param_star(func, size, candidates)
 
 
 class ParamDataset(Dataset):
@@ -118,9 +121,10 @@ class ParamDataset(Dataset):
             inputs_volvol, target_volvol, candidates_volvol = sst.get_values(sabr.volvol, 4, raw_volvols, corrected_volvols, k, p)
 
             date = np.array([date] * len(inputs_alpha))
-            alphas.append(np.concatenate((date[:, np.newaxis], inputs_alpha, target_alpha[:, np.newaxis]), axis=1))
-            rhos.append(np.concatenate((date[:, np.newaxis], inputs_rho, target_rho[:, np.newaxis]), axis=1))
-            volvols.append(np.concatenate((date[:, np.newaxis], inputs_volvol, target_volvol[:, np.newaxis]), axis=1))
+            tenors = np.concatenate((tenors, fixed_tenors)) if len(corrected_alphas) > 0 else tenors
+            alphas.append(np.concatenate((date[:, np.newaxis], tenors[:, np.newaxis], inputs_alpha, target_alpha[:, np.newaxis]), axis=1))
+            rhos.append(np.concatenate((date[:, np.newaxis], tenors[:, np.newaxis], inputs_rho, target_rho[:, np.newaxis]), axis=1))
+            volvols.append(np.concatenate((date[:, np.newaxis], tenors[:, np.newaxis], inputs_volvol, target_volvol[:, np.newaxis]), axis=1))
 
             prev_day_params["p"] = sabr.p_star(candidates_alpha)
             prev_day_params["q"] = sabr.q_star(candidates_rho)
@@ -157,7 +161,7 @@ class LitSST(lightning.LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        x = torch.tensor(batch[0], dtype=torch.float32)
+        x = torch.tensor(batch[0][:, :, 1:], dtype=torch.float32)
         y = torch.tensor(batch[1], dtype=torch.float32)
         # pad with zeroes to in_features
         # x = torch.cat((x, torch.zeros((x.shape[0], self.model.n - x.shape[1], x.shape[2]), device=x.device)), dim=1)
@@ -171,20 +175,21 @@ class LitSST(lightning.LightningModule):
 
 
 def main():
-    sst = SST(21, 7, 4, 4)
+    lit_sst = LitSST(4, 2, 4, 1, 0.05, 0.02)
 
     dataset = VolatilityDataset()
     dataset.load("option_SPY_dataset_combined.csv")
 
-    param_dataset = ParamDataset(sst=sst)
-    # param_dataset.preprocess(dataset, k=2)
+    param_dataset = ParamDataset(sst=lit_sst.model)
+    # param_dataset.preprocess(lit_sst.model, dataset, k=2)
     param_dataset.load()
-
-    lit_sst = LitSST(4, 2, 4, 1, 0.05, 0.02)
 
     trainer = lightning.Trainer(max_epochs=10)
     dataloader = torch.utils.data.DataLoader(param_dataset, batch_size=1, shuffle=True)
     trainer.fit(lit_sst, dataloader)
+    model = lit_sst.model
+    best_candidates = model.best_candidates(param_dataset[0][0][:, 0:2], param_dataset[0][1])
+    p_star = model.param_star(model.sabr.alpha, 5, best_candidates.numpy())
 
 
 if __name__ == "__main__":

@@ -99,7 +99,7 @@ class ParametricSABR:
         def error(param):
             try:
                 with np.errstate(invalid='raise', over='raise'):
-                    err = np.sum((np.subtract(func(candidates[:, 0], param), candidates[:, 1])) ** 2)
+                    err = np.sum((np.subtract(func(candidates[:, 1], param), candidates[:, 0])) ** 2)
             except FloatingPointError:
                 err = 1e9
             return err
