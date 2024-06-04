@@ -1,1 +1,135 @@
-\section{Problem description and Motivation}
+\section{Desenvolvimento}
+\subsection{Formulação do Modelo SABR}
+
+O modelo SABR é definido por um conjunto de equações diferenciais estocásticas que descrevem a dinâmica do preço a termo e sua volatilidade. Os parâmetros do modelo incluem:
+\begin{itemize}
+	\item \textbf{Alpha (\(\alpha\))}: O nível inicial da volatilidade.
+	\item \textbf{Beta (\(\beta\))}: O parâmetro de elasticidade que determina a dependência da volatilidade em relação ao preço do ativo.
+	\item \textbf{Rho (\(\rho\))}: A correlação entre o preço do ativo e sua volatilidade.
+	\item \textbf{Volvol (\(\nu\))}: A volatilidade do processo de volatilidade.
+\end{itemize}
+
+A função de volatilidade implícita do modelo SABR é dada por:
+
+\begin{equation}
+	\sigma_{\textit{BS}}(f, K) = 
+	\alpha \frac{(fK)^{\frac{1 - \beta}{2}}}{1 + \left(\frac{(1 - \beta)^2 \rho^2}{24} + \frac{(1 - \beta)^2(2 - 3\rho^2)}{1920} \right) (fK)^{1 - \beta}}
+\end{equation}
+
+\subsection{Modelo Transformer para Ajuste de Parâmetros}
+
+Transformers são um tipo de arquitetura de rede neural conhecida por sua capacidade de capturar dependências complexas em dados sequenciais. Neste projeto, um transformer encoder é usado para ajustar os parâmetros do modelo SABR (P, Q e R), correspondendo a \(\alpha\), \(\rho\) e \(\nu\) respectivamente. O transformer processa dados históricos de opções e produz estimativas de parâmetros que minimizam o erro entre as volatilidades implícitas do modelo e as volatilidades de mercado observadas.
+
+\subsection{Detalhes da Implementação}
+
+\subsubsection{Classe do Modelo SABR}
+
+A classe `SABRModel` implementa o modelo SABR, fornecendo métodos para calcular preços a termo, volatilidades implícitas e ajustar os parâmetros do modelo. Os métodos principais incluem:
+\begin{itemize}
+	\item `forward()`: Calcula o preço a termo dado o tempo até o vencimento, preço à vista, taxa livre de risco e rendimento de dividendos.
+	\item `z()`: Calcula a variável intermediária \(z\) usada na fórmula de volatilidade do SABR.
+	\item `x()`: Calcula a variável intermediária \(x\) usada na fórmula de volatilidade do SABR.
+	\item `ivol()`: Calcula a volatilidade implícita para parâmetros de modelo e condições de mercado dadas.
+	\item `fit()`: Ajusta os parâmetros do modelo SABR aos dados de mercado observados usando técnicas de otimização.
+\end{itemize}
+
+\subsection{Arquitetura do Transformer}
+
+A arquitetura do transformer é conhecida por sua capacidade de capturar dependências complexas em dados sequenciais, utilizando um mecanismo de atenção para ponderar a importância de diferentes partes da sequência. A seguir, descrevemos a implementação de um modelo transformer em PyTorch, destacando os componentes principais: a atenção própria (Self-Attention), o bloco do transformer (Transformer Block) e o encoder do transformer (Transformer Encoder).
+
+\subsubsection{Atenção Própria}
+
+A classe \texttt{SelfAttention} implementa o mecanismo de atenção própria, que aceita dados contínuos e calcula a atenção para diferentes cabeças. A atenção é calculada através das matrizes de valor (\texttt{value}), chave (\texttt{key}) e consulta (\texttt{query}), resultando em uma saída ponderada pela importância de cada parte da sequência. 
+\begin{equation}
+	\textit{Attention}(Q, K, V) = \textit{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+\end{equation}
+
+A implementação inclui:
+
+\begin{verbatim}
+class SelfAttention(nn.Module):
+	def __init__(self, in_features, heads):
+		
+		self.head_dim = in_features // heads
+		self.in_features = in_features
+		self.heads = heads
+		
+		self.W_v = nn.Linear(self.head_dim, self.head_dim, bias=False)
+		self.W_k = nn.Linear(self.head_dim, self.head_dim, bias=False)
+		self.W_q = nn.Linear(self.head_dim, self.head_dim, bias=False)
+		
+		self.fc_out = nn.Linear(in_features, in_features)
+		
+	def forward(self, value, key, query, mask=None):
+		N = query.shape[0]
+		value_len, key_len, query_len = value.shape[1], key.shape[1], query.shape[1]
+		
+		value = value.reshape(N, value_len, self.heads, self.head_dim)
+		key = key.reshape(N, key_len, self.heads, self.head_dim)
+		query = query.reshape(N, query_len, self.heads, self.head_dim)
+		
+		values = self.W_v(value)
+		keys = self.W_k(key)
+		queries = self.W_q(query)
+		
+		energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])
+		if mask is not None:
+		energy = energy.masked_fill(mask == 0, float("-1e20"))
+		
+		attention = torch.softmax(energy / (self.head_dim ** (1 / 2)), dim=3)
+		out = torch.einsum("nhql,nlhd->nqhd", [attention, values]).reshape(N, query_len, self.in_features)
+		
+		out = self.fc_out(out)
+		return out
+\end{verbatim}
+
+\subsubsection{Bloco do Transformer}
+
+A classe \texttt{TransformerBlock} implementa um bloco do transformer, composto por um mecanismo de atenção própria, normalização em camadas (LayerNorm) e uma rede feed-forward. Este bloco é a unidade básica que será repetida várias vezes no encoder:
+
+\begin{verbatim}
+class TransformerBlock(nn.Module):
+	def __init__(self, in_features, heads, forward_expansion):
+		self.attention = SelfAttention(in_features, heads)
+		self.norm1 = nn.LayerNorm(in_features)
+		self.norm2 = nn.LayerNorm(in_features)
+		
+		self.feed_forward = nn.Sequential(
+			nn.Linear(in_features, forward_expansion * in_features),
+			nn.ReLU(),
+			nn.Linear(forward_expansion * in_features, in_features)
+		)
+		
+	def forward(self, x, mask=None):
+		attention = self.attention(x, x, x, mask)
+		x = self.norm1(attention + x)
+		forward = self.feed_forward(x)
+		out = self.norm2(forward + x)
+		return out
+\end{verbatim}
+
+\subsubsection{Encoder do Transformer}
+
+A classe \texttt{TransformerEncoder} implementa o encoder do transformer, composto por vários blocos do transformer. Este encoder processa a sequência de entrada, aplicando múltiplas camadas de atenção própria e redes feed-forward:
+
+\begin{verbatim}
+class TransformerEncoder(nn.Module):
+	def __init__(self, in_features, heads, num_layers, forward_expansion, dropout, out_features):
+		self.layers = nn.ModuleList([
+			TransformerBlock(in_features, heads, forward_expansion) for _ in range(num_layers)
+		])
+		
+		self.dropout = nn.Dropout(dropout)
+		self.fc_out = nn.Linear(in_features, out_features)
+		
+	def forward(self, x, mask=None):
+		for layer in self.layers:
+			x = layer(x, mask)
+		return self.fc_out(x)
+\end{verbatim}
+
+\subsubsection{Classe SABR Paramétrica}
+
+A classe `ParametricSABR` estende o modelo SABR introduzindo funções de parâmetros dependentes do tempo para \(\alpha\), \(\rho\) e \(\nu\). Essas funções são ajustadas aos dados históricos usando técnicas de otimização, e a classe fornece métodos para gerar superfícies de volatilidade suaves.
+
+
