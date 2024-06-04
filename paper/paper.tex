@@ -1,7 +1,5 @@
 \documentclass{article}
 
-
-
 \usepackage{arxiv}
 
 \usepackage[utf8]{inputenc} % allow utf-8 input
@@ -15,8 +13,9 @@
 \usepackage{graphicx}
 \usepackage{natbib}
 \usepackage{doi}
+\usepackage[portuguese]{babel}
 
-\title{Implicit variations of Deep Neural Networks for Approximating the Volatility Surface}
+\title{Transformers para Geração de Superfícies Suaves de Volatilidade Implícita}
 
 \author{ 
 	\href{https://orcid.org/0009-0008-6064-9895}{
@@ -34,41 +33,39 @@
 	Institute of Mathematical Science and Computing\\
 	University of São Paulo - Brazil \\
 	\texttt{adaltonsena@usp.br} \\
-	%% \AND
-	%% Coauthor \\
-	%% Affiliation \\
-	%% Address \\
-	%% \texttt{email} \\
-	%% \And
-	%% Coauthor \\
-	%% Affiliation \\
-	%% Address \\
-	%% \texttt{email} \\
-	%% \And
-	%% Coauthor \\
-	%% Affiliation \\
-	%% Address \\
-	%% \texttt{email} \\
+	\And
+	\href{https://orcid.org/0000-0000-0000-0000}{
+		\includegraphics[scale=0.06]{resources/orcid.pdf}
+		\hspace{1mm}Eduardo Brito
+	}\\
+	Institute of Mathematical Science and Computing\\
+	University of São Paulo - Brazil \\
+	\texttt{eduardobritocusp.br} \\
 }
 
 %\date{}
 
 \renewcommand{\headeright}{}
 \renewcommand{\undertitle}{}
-\renewcommand{\shorttitle}{Implicit variations of Deep Neural Networks for Approximating the Volatility Surface}
+\renewcommand{\shorttitle}{Transformers para Geração de Superfícies Suaves de Volatilidade Implícita}
 
 \hypersetup{
-	pdftitle={Implicit variations of Deep Neural Networks for Approximating the Volatility Surface},
+	pdftitle={Transformers para Geração de Superfícies Suaves de Volatilidade Implícita},
 	pdfsubject={q-bio.NC, q-bio.QM},
-	pdfauthor={Zimmer, R., Filho, A.},
+	pdfauthor={Zimmer, R., Filho, A., Brito, E.},
 	pdfkeywords={First keyword, Second keyword, More},
 }
 
+% Redefine abstract name to Resumo
+\addto\captionsportuguese{\renewcommand{\abstractname}{Resumo}}
+
 \begin{document}
+	\selectlanguage{portuguese}
+	
 	\maketitle
 	
 	\begin{abstract}
-		\include{content/abstract}
+		Neste trabalho implementamos uma rede neural com arquitetura baseada em \textit{Transformers} para otimização de valores $P, Q, R$ para diversos modelos \textit{SABR} paramétricos (\textit{parametric stochastic $\alpha, \beta, \rho$}) para geração de superfícies de volatilidade implicita no contexto de opções financeiras. A motivação por trás do trabalho é permitir a interpolação e extrapolação suave da superfície, ou seja, tornando-a derivável em todos os pontos. O desenvolvimento da arquitetura tem como principal contribuição solucionar o problema na escolha dos candidatos $\alpha, \rho, volvol$ cujos parâmetros $P, Q, R$ otimizados gerem a superfície com menor oportunidade de arbitragem. Por fim, utilizaremos os valores históricos observados de $\alpha, \rho, volvol$ e a capacidade inata das arquiteturas de transformers para processar observações de sequências com tamanhos não fixos, ou seja, para volatilidades de contratos com data de vencimento variadas e não fixas e gerar as superfícies, comparando os resultados com métodos de interpolação clássicos (linear e \textit{splines}).
 	\end{abstract}
 	
 	\keywords{First keyword \and Second keyword \and More}
@@ -77,13 +74,8 @@
 	
 	\include{content/theory}
 	
-	\section{Methodology}
-	\include{content/methodology}
-	
-	\section{Results}
 	\include{content/results}
 	
-	\section{Conclusion}
 	\include{content/conclusion}
 	
 	\bibliographystyle{unsrtnat}

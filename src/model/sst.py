@@ -175,12 +175,14 @@ class LitSST(lightning.LightningModule):
 
 
 def main():
-    lit_sst = LitSST(4, 2, 4, 1, 0.05, 0.02)
+    sst_p = LitSST(4, 2, 4, 1, 0.05, 0.02)
+    sst_q = LitSST(4, 2, 4, 1, 0.05, 0.02)
+    sst_r = LitSST(4, 2, 4, 1, 0.05, 0.02)
 
     dataset = VolatilityDataset()
     dataset.load("option_SPY_dataset_combined.csv")
 
-    param_dataset = ParamDataset(sst=lit_sst.model)
+    param_dataset = ParamDataset(sst=sst_p.model)
     # param_dataset.preprocess(lit_sst.model, dataset, k=2)
     param_dataset.load()
 
@@ -190,6 +192,10 @@ def main():
     model = lit_sst.model
     best_candidates = model.best_candidates(param_dataset[0][0][:, 0:2], param_dataset[0][1])
     p_star = model.param_star(model.sabr.alpha, 5, best_candidates.numpy())
+
+    K = np.linspace(80, 120, 100)
+    T = param_dataset[0][0][:, 1]
+    surface = model.sabr.smooth_surface(K, T, {"p": p_star})
 
 
 if __name__ == "__main__":

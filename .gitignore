@@ -1,12 +1,12 @@
 .idea
 .vscode
 
-paper/*.bbl
-paper/*.blg
-paper/*.log
-paper/*.out
-paper/*.gz
-paper/*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.gz
+*.aux
 
 *.csv
 lightning_logs/
