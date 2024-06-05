@@ -14,8 +14,9 @@ class SABRModel:
 
     @classmethod
     def x(cls, volvol, alpha, beta, f, k, rho):
-        return np.log((np.sqrt(1 - 2 * rho * cls.z(volvol, alpha, beta, f, k) + cls.z(volvol, alpha, beta, f, k) ** 2) +
-                       cls.z(volvol, alpha, beta, f, k) - rho) / (1 - rho))
+        return np.log(np.maximum(
+            (np.sqrt(1 - 2 * rho * cls.z(volvol, alpha, beta, f, k) + cls.z(volvol, alpha, beta, f, k) ** 2) +
+             cls.z(volvol, alpha, beta, f, k) - rho) / (1 - rho), 1e-9))
 
     @classmethod
     def ivol(cls, alpha, beta, rho, volvol, s, k, t, r, d: float = 0.0):
@@ -33,7 +34,7 @@ class SABRModel:
         return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (x ** 2) / 24 + (x ** 4) / 1920)
 
     @classmethod
-    def fit(cls, x, y, initial_guess = None):
+    def fit(cls, x, y, initial_guess=None):
         def error(i):
             try:
                 with np.errstate(divide='raise'):
@@ -81,25 +82,28 @@ class ParametricSABR:
         self.rf = rf
         self.div = div
 
-    def alpha(self, t, p):
+    @staticmethod
+    def alpha(t, p):
         try:
             with np.errstate(invalid='raise', over='raise'):
                 return p[0] + p[3] / p[4] * (1 - np.exp(-p[4] * t)) / (p[4] * t) + p[1] / p[2] * np.exp(-p[2] * t)
         except FloatingPointError:
             return 1e-16
 
-    def rho(self, t, q):
+    @staticmethod
+    def rho(t, q):
         return q[0] + q[1] * t + q[2] * np.exp(-q[3] * t)
 
-    def volvol(self, t, r):
-        return r[0] + r[1] * np.power(t, r[2]) * np.exp(r[3] * t)
+    @staticmethod
+    def volvol(t, r):
+        return r[0] + r[1] * np.power(np.maximum(t, 1e-16), r[2] + 1e-16) * np.exp(r[3] * t + 1e-16)
 
     @staticmethod
     def param_star(func, size, candidates):  # Candidates \mathcal{S} = {(t, param^{t})}
         def error(param):
             try:
                 with np.errstate(invalid='raise', over='raise'):
-                    err = np.sum((np.subtract(func(candidates[:, 1], param), candidates[:, 0])) ** 2)
+                    err = np.sum((np.subtract(func(candidates[:, 0], param), candidates[:, 1])) ** 2)  # 0 is tenor, 1 is value (alpha, rho, volvol)
             except FloatingPointError:
                 err = 1e9
             return err
@@ -109,18 +113,19 @@ class ParametricSABR:
 
         return res.x
 
-    def p_star(self, candidates):
-        return self.param_star(self.alpha, 5, candidates)
+    @classmethod
+    def p_star(cls, candidates):
+        return cls.param_star(cls.alpha, 5, candidates)
 
-    def q_star(self, candidates):
-        return self.param_star(self.rho, 4, candidates)
+    @classmethod
+    def q_star(cls, candidates):
+        return cls.param_star(cls.rho, 4, candidates)
 
-    def r_star(self, candidates):
-        return self.param_star(self.volvol, 4, candidates)
+    @classmethod
+    def r_star(cls, candidates):
+        return cls.param_star(cls.volvol, 4, candidates)
 
-    def smooth_surface(self, K, T, star_params):
-        beta = 0.5
-
+    def smooth_surface(self, K, T, star_params, beta=0.5):
         iv = np.zeros((len(T), len(K)))
 
         for idx, i in enumerate(T):

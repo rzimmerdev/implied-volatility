@@ -85,7 +85,6 @@ class Dataviewer:
         matplotlib.use('TkAgg')
 
     def plot(self, df):
-        df = df.dropna().drop_duplicates()
         x = df["strike"].values
         y = df["maturity"].values
         z = df["iv"].values
@@ -120,3 +119,4 @@ if __name__ == "__main__":
 
     viewer = Dataviewer()
     viewer.plot(data)
+    plt.show()
