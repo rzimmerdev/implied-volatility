@@ -92,7 +92,7 @@ class SST(nn.Module):
         # use values to return only the top p% of the inputs
         n = len(inputs)
         top = int((1 - p) * n)
-        indices = torch.argsort(values, descending=True)
+        indices = torch.argsort(values, dim=0, descending=True)
         selected = indices[top:]
         return inputs[selected]
 
@@ -120,15 +120,9 @@ class ParamDataset(Dataset):
             candidates = np.concatenate((raw_candidates, corrected_candidates), axis=0)
         inputs = np.zeros((n, 4))
 
-        param_star = ParametricSABR.param_star(func, size, candidates)
+        target = np.clip(SST.z_values(func, size, candidates, k, p), -1e9, 1e9)
 
-        target = np.array(
-            [func(tenor, param_star) for tenor in candidates[:, 1]]
-        )
-
-        z_values = SST.z_values(func, size, candidates, k, p)
-
-        inputs[:, 0] = z_values
+        inputs[:, 0] = candidates[:, 1]
         inputs[:, 1] = candidates[:, 0]
         inputs[:, 2] = np.zeros(n)
         inputs[:, 2][:len(raw_candidates)] = 1
@@ -190,21 +184,36 @@ class ParamDataset(Dataset):
 
             date = np.array([date] * len(inputs_alpha))
             tenors = np.concatenate((tenors, fixed_tenors)) if len(corrected_alphas) > 0 else tenors
-            alphas.append(np.concatenate((date[:, np.newaxis], tenors[:, np.newaxis], inputs_alpha, target_alpha[:, np.newaxis]), axis=1))
-            rhos.append(np.concatenate((date[:, np.newaxis], tenors[:, np.newaxis], inputs_rho, target_rho[:, np.newaxis]), axis=1))
-            volvols.append(np.concatenate((date[:, np.newaxis], tenors[:, np.newaxis], inputs_volvol, target_volvol[:, np.newaxis]), axis=1))
+
+            # if nan in alphas, rhos or volvols, skip
+            if np.isnan(inputs_alpha).any() or np.isnan(inputs_rho).any() or np.isnan(inputs_volvol).any():
+                continue
+
+            alphas.append(
+                np.concatenate((date[:, np.newaxis], tenors[:, np.newaxis], inputs_alpha, target_alpha[:, np.newaxis]),
+                               axis=1))
+            rhos.append(
+                np.concatenate((date[:, np.newaxis], tenors[:, np.newaxis], inputs_rho, target_rho[:, np.newaxis]),
+                               axis=1))
+            volvols.append(np.concatenate(
+                (date[:, np.newaxis], tenors[:, np.newaxis], inputs_volvol, target_volvol[:, np.newaxis]), axis=1))
 
             prev_day_params["p"] = ParametricSABR.p_star(candidates_alpha)
             prev_day_params["q"] = ParametricSABR.q_star(candidates_rho)
             prev_day_params["r"] = ParametricSABR.r_star(candidates_volvol)
 
-        alphas = np.vstack(alphas)
-        rhos = np.vstack(rhos)
-        volvols = np.vstack(volvols)
+        def save(candidates, name):
+            candidates = np.vstack(candidates)
+            numerical_candidates = candidates[:, 1:].astype(np.float32)
+            candidates = candidates[~np.isnan(numerical_candidates).any(axis=1)]
+            numerical_candidates = candidates[:, 1:].astype(np.float32)
+            candidates = candidates[~np.isinf(numerical_candidates).any(axis=1)]
 
-        np.save(f"{path}alphas.npy", alphas)
-        np.save(f"{path}rhos.npy", rhos)
-        np.save(f"{path}volvols.npy", volvols)
+            np.save(f"{path}{name}.npy", candidates)
+
+        save(alphas, "alphas")
+        save(rhos, "rhos")
+        save(volvols, "volvols")
 
     def __len__(self):
         return len(self.dates)
@@ -212,18 +221,18 @@ class ParamDataset(Dataset):
     def __getitem__(self, idx):
         date = self.dates[idx]
 
-        candidates = self.data[self.data[:, 0] == date][:, 1:].astype(np.float32)
+        points = self.data[self.data[:, 0] == date][:, 1:].astype(np.float32)
 
-        return (torch.tensor(candidates[:, :-1], dtype=torch.float32),
-                torch.tensor(candidates[:, -1], dtype=torch.float32))
+        return (torch.tensor(points[:, :-1], dtype=torch.float32),
+                torch.tensor(points[:, -1], dtype=torch.float32))
 
 
 class LitSST(lightning.LightningModule):
-    def __init__(self, in_features, heads, num_layers, out_features=None, checkpoint_path=None):
+    def __init__(self, in_features, heads, num_layers, out_features=None, checkpoint_path=None, lr=1e-3):
         super(LitSST, self).__init__()
         self.model = SST(in_features, heads, num_layers, out_features)
         self.criterion = nn.MSELoss()
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         self.losses = []
 
         if checkpoint_path and os.path.exists(checkpoint_path):
@@ -233,13 +242,14 @@ class LitSST(lightning.LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        x = torch.tensor(batch[0][:, :, 1:], dtype=torch.float32)
+        x = torch.clamp(torch.tensor(batch[0][:, :, 1:], dtype=torch.float32), -1e9, 1e9)
         y = batch[1]
-        # pad with zeroes to in_features
-        # x = torch.cat((x, torch.zeros((x.shape[0], self.model.n - x.shape[1], x.shape[2]), device=x.device)), dim=1)
-        # y = torch.cat((y, torch.zeros((y.shape[0], self.model.n - y.shape[1]), device=y.device)), dim=1)
         output = self.model(x)
+
         loss = self.criterion(output[:, :, 0], y)
+
+        if loss is None or np.isnan(loss.item()) or np.isinf(loss.item()):
+            raise ValueError(f"Loss is None for batch {batch_idx}")
 
         # log loss
         self.losses.append(loss.item())
@@ -263,9 +273,9 @@ def main(preprocess=False, checkpoint=None):
         checkpoint_paths = {i: f"{checkpoint}_{i}.pth" for i in ("alpha", "rho", "volvol")}
     else:
         checkpoint_paths = {"alpha": None, "rho": None, "volvol": None}
-    sst_p = LitSST(4, 2, 4, 1, checkpoint_paths["alpha"])
-    sst_q = LitSST(4, 2, 4, 1, checkpoint_paths["rho"])
-    sst_r = LitSST(4, 2, 4, 1, checkpoint_paths["volvol"])
+    sst_p = LitSST(4, 2, 4, 1, checkpoint_paths["alpha"], lr=1e-5)
+    sst_q = LitSST(4, 2, 4, 1, checkpoint_paths["rho"], lr=1e-6)
+    sst_r = LitSST(4, 2, 4, 1, checkpoint_paths["volvol"], lr=1e-3)
 
     dataset = VolatilityDataset()
     dataset.load("option_SPY_dataset_combined.csv")
@@ -278,65 +288,80 @@ def main(preprocess=False, checkpoint=None):
     data_q.load("rhos")
     data_r.load("volvols")
 
-    def train(lit_sst, data, func, size, epochs=100):
+    def train(lit_sst, data, epochs=100):
         trainer = lightning.Trainer(max_epochs=epochs)
         dataloader = torch.utils.data.DataLoader(data, batch_size=1, shuffle=True)
         trainer.fit(lit_sst, dataloader)
-        best_candidates = SST.best_candidates(data_p[0][0][:, 0:2], data_p[0][1])
 
-        return ParametricSABR.param_star(func, size, best_candidates.numpy())
+    def get_star(lit_sst, data, func, size):
+        scores = lit_sst.model(data[0][0][np.newaxis, :, :-1])
+        best_candidates = SST.best_candidates(data[0][0][:, :-1], scores[0][:, 0], p=0.4).detach().numpy()
+        return ParametricSABR.param_star(func, size, best_candidates)
 
-    p_star = train(sst_p, data_p, ParametricSABR.alpha, 5)
-    q_star = train(sst_q, data_q, ParametricSABR.rho, 4)
-    r_star = train(sst_r, data_r, ParametricSABR.volvol, 4)
+    if checkpoint is None or not all([os.path.exists(checkpoint_paths[i]) for i in ("alpha", "rho", "volvol")]):
+        train(sst_p, data_p)
+        train(sst_q, data_q)
+        train(sst_r, data_r)
 
-    if checkpoint is not None:
+    p_star = get_star(sst_p, data_p, ParametricSABR.alpha, 5)
+    q_star = get_star(sst_q, data_q, ParametricSABR.rho, 4)
+    r_star = get_star(sst_r, data_r, ParametricSABR.volvol, 4)
+
+    if checkpoint is not None and not all([os.path.exists(checkpoint_paths[i]) for i in ("alpha", "rho", "volvol")]):
         sst_p.save_checkpoint(f"{checkpoint}_alpha.pth")
         sst_q.save_checkpoint(f"{checkpoint}_rho.pth")
         sst_r.save_checkpoint(f"{checkpoint}_volvol.pth")
 
-    losses = [np.array(loss) for loss in [sst_p.losses, sst_q.losses, sst_r.losses]]
-    # apply moving window mean
-    window = 10
-    losses = [np.convolve(loss, np.ones(window) / window, mode='valid') for loss in losses]
+    if sst_p.losses:
+        losses = [np.array(loss) for loss in [sst_p.losses, sst_q.losses, sst_r.losses]]
+        # apply moving window mean
+        window = 10
+        losses = [np.convolve(loss, np.ones(window) / window, mode='valid') for loss in losses]
 
-    # plot losses
-    plt.plot(losses[0], label="Alpha")
-    plt.plot(losses[1], label="Rho")
-    plt.plot(losses[2], label="Volvol")
+        # plot losses
+        plt.plot(losses[0], label="Alpha")
+        plt.plot(losses[1], label="Rho")
+        plt.plot(losses[2], label="Volvol")
+        plt.legend()
+        plt.savefig("losses.png")
 
-    plt.legend()
-    plt.show()
-
-    # get unique strikes from dataset
-    K = np.unique(dataset.data["strike"].values)
-    T = np.unique(dataset.data["maturity"].values)
+        plt.show()
 
     # get 20 spaced points from K and T
-    K = np.linspace(K[0], K[-1], 20)
-    T = np.linspace(T[0], T[-1], 20)
-
     rf = dataset.data["r"].values[0]
     div = dataset.data["d"].values[0]
 
     sabr = ParametricSABR(rf, div)
 
-    surface = sabr.smooth_surface(K, T, {"p": p_star, "q": q_star, "r": r_star})
-
-    # surface is a matrix, transform to list[(strike, maturity, iv)]
-    surface = pd.DataFrame([(k, float(T[idx]), surface[idx][i]) for idx in range(len(T)) for i, k in enumerate(K)])
-    df = pd.DataFrame(surface)
-    df.columns = ["strike", "maturity", "iv"]
-
     # plot 3d surface scatter
     viewer = Dataviewer()
-    viewer.plot(df)
-
     last_date = dataset.dates[-1]
-    real_surface = dataset.get((-np.inf, np.inf), (K[0], K[-1]), last_date)
+    real_surface = dataset.get((-np.inf, np.inf), (-np.inf, np.inf), last_date)
+    maturities = np.unique(real_surface["maturity"].values)
+    maturities = np.linspace(maturities[0], maturities[-1], 20)
+    strikes = np.unique(real_surface["strike"].values)
+    strikes = np.linspace(strikes[0], strikes[-1], 20)
+    spot = dataset.data["underlying"].values[-1]
 
     real_surface = real_surface[['strike', 'maturity', 'iv']]
     viewer.plot(real_surface)
+    plt.savefig("real_surface.png")
+
+    beta = 0.1
+    pred_surface = sabr.smooth_surface(spot, maturities, strikes, {"p": p_star, "q": q_star, "r": r_star}, beta)
+
+    # surface is a matrix, transform to df.columns = ["strike", "maturity", "iv"]
+    strikes_grid, maturities_grid = np.meshgrid(strikes, maturities, indexing='ij')
+    pred_surface = pd.DataFrame({
+        "strike": strikes_grid.ravel(),
+        "maturity": maturities_grid.ravel(),
+        "iv": pred_surface.ravel()
+    })
+    pred_surface.columns = ["strike", "maturity", "iv"]
+
+    # plot scatter
+    viewer.plot(pred_surface)
+    plt.savefig("pred_surface.png")
     plt.show()
 
 

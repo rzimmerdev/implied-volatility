@@ -91,21 +91,20 @@ def main():
     x = torch.rand(64, 11, 4)
     y = torch.rand(64, 11, 1)
 
-    model = TransformerEncoder(4, 1, 4, 4, 0.5, 1)
-
+    model = TransformerEncoder(4, 4, 4, 2, 0.5, 1)
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-6)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    output = None
 
-    for epoch in range(10):
+    for epoch in range(100):
         optimizer.zero_grad()
         output = model(x)
         loss = criterion(output, y)
         loss.backward()
         optimizer.step()
-        print(f"Epoch {epoch} loss: {loss.item()}")
+        print(loss)
 
-    print("Training finished")
-    print("Output shape:", output.shape)
+    print(output)
 
 
 if __name__ == "__main__":

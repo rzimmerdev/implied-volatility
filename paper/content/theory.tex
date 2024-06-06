@@ -1,4 +1,4 @@
-\section{Desenvolvimento}
+\section{Fundamentação Teórica e Desenvolvimento}
 \subsection{Formulação do Modelo SABR}
 
 O modelo SABR é definido por um conjunto de equações diferenciais estocásticas que descrevem a dinâmica do preço a termo e sua volatilidade. Os parâmetros do modelo incluem:
@@ -16,9 +16,37 @@ A função de volatilidade implícita do modelo SABR é dada por:
 	\alpha \frac{(fK)^{\frac{1 - \beta}{2}}}{1 + \left(\frac{(1 - \beta)^2 \rho^2}{24} + \frac{(1 - \beta)^2(2 - 3\rho^2)}{1920} \right) (fK)^{1 - \beta}}
 \end{equation}
 
-\subsection{Modelo Transformer para Ajuste de Parâmetros}
+No contexto deste trabalho, serão gerados diversos modelos SABR diariamente, correspondendo à cada nível de maturidade diferente. Para tal, foi utilizado uma função contínua para mapear as diferentes maturidades para os parâmetros do modelo. São utilizadas 3 variáveis que codificam os níveis de maturidade, sendo elas:
+
+\begin{itemize}
+	\item \textbf{P}: Dada uma função $f_{\alpha}(\cdot, \textbf{P}) \rightarrow \mathbb{R}$, os valores $\alpha$ dos diversos modelos \textit{SABR} são codificados dado um único vetor P, tal que $\textbf{P} \in R^{5}$.
+	
+	\item \textbf{Q}: Dada uma função $f_{\rho}(\cdot, \textbf{Q}) \rightarrow \mathbb{R}$, os valores $\rho$ dos diversos modelos \textit{SABR} são codificados dado um único vetor Q, tal que $\textbf{Q} \in R^{4}$.
+	
+	\item \textbf{R}: Dada uma função $f_{\nu}(\cdot, \textbf{R}) \rightarrow \mathbb{R}$, os valores $\nu$ dos diversos modelos \textit{SABR} são codificados dado um único vetor R, tal que $\textbf{R} \in R^{4}$.
+\end{itemize}
+
+As funções $f_{\alpha}, f_{\rho}$, e $f_{\nu}$ são dadas de acordo com as expressões:
+
+\begin{equation}
+	f_{\alpha}(t, p) = p_0 + \frac{p_3}{p_4} \left( \frac{1 - e^{-p_4 t}}{p_4 t} \right) + \frac{p_1}{p_2} e^{-p_2 t}
+\end{equation}
+\begin{equation}
+	f_{\rho}(t, q) = q_0 + q_1 t + q_2 e^{-q_3 t}
+\end{equation}
+\begin{equation}
+	f_{\nu}(t, r) = r_0 + r_1 t^{r_2} e^{r_3 t}
+\end{equation}
+
+\subsection{Arquitetura Transformer Utilizada e Etapas de Ajuste de Parâmetros}
 
 Transformers são um tipo de arquitetura de rede neural conhecida por sua capacidade de capturar dependências complexas em dados sequenciais. Neste projeto, um transformer encoder é usado para ajustar os parâmetros do modelo SABR (P, Q e R), correspondendo a \(\alpha\), \(\rho\) e \(\nu\) respectivamente. O transformer processa dados históricos de opções e produz estimativas de parâmetros que minimizam o erro entre as volatilidades implícitas do modelo e as volatilidades de mercado observadas.
+
+Diferente das redes neurais recorrentes (RNNs) e das redes neurais convolucionais (CNNs), os transformers não dependem de uma estrutura sequencial para processar dados. Em vez disso, utilizam um mecanismo de atenção, que permite que cada elemento de entrada (ou token) considere a relação com todos os outros elementos na mesma sequência simultaneamente. Isso é realizado através de uma série de camadas chamadas de encoders (para codificação dos dados de entrada) e decoders (para gerar a saída).
+
+Transformers são classificados como algoritmos de aprendizado de máquina devido à sua capacidade de aprender padrões e relações a partir de dados. Eles são treinados usando técnicas supervisionadas. No contexto da arquitetura específica que implementamos, utilizamos apenas as camadas do \textit{encoder}, com 4 dimensões de entrada, 2 cabeças de atenção por camada e 4 camadas no total. A etapa de treino do modelo é realizada em cima de dados históricos de opções em cima do papel \textbf{S\&P 500} para o ano de 2021-2022. As épocas de treino do modelo ajustam os pesos da camada com uma função de erro que minimiza a diferença entre suas previsões e os valores das pontuações geradas manualmente. Essa capacidade de aprendizado é o que permite que transformers generalizem bem para novos dados não vistos durante o treinamento, fazendo previsões precisas baseadas nos padrões aprendidos.
+
+A tarefa de ajuste de parâmetros do modelo SABR é especificamente uma tarefa de regressão. Em aprendizado de máquina, a regressão refere-se a problemas onde a saída é uma variável contínua, ao contrário da classificação, onde a saída é uma categoria discreta. No nosso caso, a saída do modelo transformer são as pontuações contínuas para cada parâmetro $\alpha, \rho$, e $\nu$ usados como entrada do algoritm quasi-Newton de otimização não-linear Broyden-Fletcher-Goldfarb-Shanno (BFGS) \citep{Broyden1970, Fletcher1970, Goldfarb1970, Shanno1970}, tendo como alvo os valores \textbf{P, Q} e \textbf{R} que minimizem possíveis oportunidades de arbitragem de contratos com maturidades e \textit{strikes} interpolados ou extrapolados.
 
 \subsection{Detalhes da Implementação}
 
@@ -26,11 +54,8 @@ Transformers são um tipo de arquitetura de rede neural conhecida por sua capaci
 
 A classe `SABRModel` implementa o modelo SABR, fornecendo métodos para calcular preços a termo, volatilidades implícitas e ajustar os parâmetros do modelo. Os métodos principais incluem:
 \begin{itemize}
-	\item `forward()`: Calcula o preço a termo dado o tempo até o vencimento, preço à vista, taxa livre de risco e rendimento de dividendos.
-	\item `z()`: Calcula a variável intermediária \(z\) usada na fórmula de volatilidade do SABR.
-	\item `x()`: Calcula a variável intermediária \(x\) usada na fórmula de volatilidade do SABR.
+	\item `star()`: Otimiza os valores $P, Q$ e $R$ que minimizem o erro da superfície gerada com a observada dado valores fixos para tempos de vencimento, preço à vista e futuro, taxa livre de risco e rendimento de dividendos e $\alpha, \rho$, e $\nu$ variáveis.
 	\item `ivol()`: Calcula a volatilidade implícita para parâmetros de modelo e condições de mercado dadas.
-	\item `fit()`: Ajusta os parâmetros do modelo SABR aos dados de mercado observados usando técnicas de otimização.
 \end{itemize}
 
 \subsection{Arquitetura do Transformer}
@@ -127,9 +152,5 @@ class TransformerEncoder(nn.Module):
 			x = layer(x, mask)
 		return self.fc_out(x)
 \end{verbatim}
-
-\subsubsection{Classe SABR Paramétrica}
-
-A classe `ParametricSABR` estende o modelo SABR introduzindo funções de parâmetros dependentes do tempo para \(\alpha\), \(\rho\) e \(\nu\). Essas funções são ajustadas aos dados históricos usando técnicas de otimização, e a classe fornece métodos para gerar superfícies de volatilidade suaves.
 
 

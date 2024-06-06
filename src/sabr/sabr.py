@@ -96,7 +96,7 @@ class ParametricSABR:
 
     @staticmethod
     def volvol(t, r):
-        return r[0] + r[1] * np.power(np.maximum(t, 1e-16), r[2] + 1e-16) * np.exp(r[3] * t + 1e-16)
+        return r[0] + r[1] * np.power(np.maximum(t, 1e-16), r[2] + 1e-16) * np.exp(np.clip(r[3] * t + 1e-16, -1e2, 5e2))
 
     @staticmethod
     def param_star(func, size, candidates):  # Candidates \mathcal{S} = {(t, param^{t})}
@@ -125,7 +125,7 @@ class ParametricSABR:
     def r_star(cls, candidates):
         return cls.param_star(cls.volvol, 4, candidates)
 
-    def smooth_surface(self, K, T, star_params, beta=0.5):
+    def smooth_surface(self, S, K, T, star_params, beta=0.5):
         iv = np.zeros((len(T), len(K)))
 
         for idx, i in enumerate(T):
@@ -133,32 +133,6 @@ class ParametricSABR:
             rho = self.rho(i, star_params["q"])
             volvol = self.volvol(i, star_params["r"])
 
-            iv[idx] = SABRModel.ivol(alpha, beta, rho, volvol, 100, K, i, self.rf, self.div)  # shape: (len(K),)
+            iv[idx] = SABRModel.ivol(alpha, beta, rho, volvol, S, K, i, self.rf, self.div)  # shape: (len(K),)
 
         return iv  # shape: (len(T), len(K))
-
-
-def main():
-    s = 100
-    k = np.linspace(80, 120, 100)
-    t = [0.1, 0.5, 1, 2, 3, 5, 7, 10]
-    r = 0.05
-    d = 0.02
-
-    sabrs = []
-
-    for i in range(len(t)):
-        x = np.array([[s, k, t[i], r, d] for k in k])
-        y = SABRModel.ivol(0.1, 0.5, 0.1, 0.1, s, k, t[i], r, d)
-        sabr = SABR(*SABRModel.fit([0.1, 0.5, 0.1, 0.1], x, y))
-        sabrs.append(sabr)
-
-    for i, sabr in enumerate(sabrs):
-        iv = np.array([sabr.ivol(s, strike, t[i], r, d) for strike in k])
-        plt.plot(k, iv, label=f"{t[i]}")
-    plt.legend()
-    plt.show()
-
-
-if __name__ == "__main__":
-    main()
