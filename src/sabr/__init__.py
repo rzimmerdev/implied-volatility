@@ -1,1 +1,2 @@
-from .sabr import ParametricSABR, SABR
+from .sabr import SABR
+from .parametric_sabr import ParametricSABR

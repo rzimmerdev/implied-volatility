@@ -10,8 +10,8 @@ from torch import nn
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from src.data import VolatilityDataset, Dataviewer
-from src.sabr.sabr import SABRModel, ParametricSABR
+from src.dataset import VolatilityDataset, Dataviewer
+from src.sabr import ParametricSABR
 
 from src.model.transformer import TransformerEncoder
 

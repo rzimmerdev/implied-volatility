@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 
 from src.sabr.sabr import SABRModel
-from data import VolatilityDataset, plot
+from dataset import VolatilityDataset, plot
 
 from torch import optim, nn
 from src.model.transformer import Transformer

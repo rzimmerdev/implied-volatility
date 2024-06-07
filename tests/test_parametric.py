@@ -3,11 +3,9 @@ import unittest
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import OptimizeWarning
-from tqdm import tqdm
 
-from src.data import Dataviewer, VolatilityDataset
-from src.sabr import SABR, ParametricSABR
+from src.dataset import Dataviewer, VolatilityDataset
+from src.sabr import ParametricSABR
 
 
 class MyTestCase(unittest.TestCase):
@@ -55,39 +53,29 @@ class MyTestCase(unittest.TestCase):
         rf = values[0, 3]
         div = values[0, 4]
 
-        alpha_candidates, rho_candidates, volvol_candidates = [], [], []
-
         logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
 
-        for idx, t in tqdm(enumerate(T), total=len(T)):
-            mask = values[:, 2] == t
-            K = values[mask, 1]
-            ivol = target[mask]
+        ivol = target
+        beta = ParametricSABR.optim_beta(ivol, S, K, T, rf, div, None, logger)
+        print(f"Best beta: {beta}")
 
-            try:
-                alpha, beta, rho, volvol = SABR.fit_sabr(ivol, S, K, t, rf, div)
-            except OptimizeWarning:
-                logger.warning(f"Optimization failed at {t}")
-                continue
-
-            alpha_candidates.append(alpha)
-            rho_candidates.append(rho)
-            volvol_candidates.append(volvol)
-
-        p, q, r = ParametricSABR.fit_params({
-            "alpha": alpha_candidates,
-            "rho": rho_candidates,
-            "volvol": volvol_candidates
-        })
-
+        candidates = ParametricSABR.fit_candidates(ivol, S, K, T, rf, div, beta, logger)
+        p, q, r = ParametricSABR.fit_params(candidates)
         sabr = ParametricSABR(p, q, r)
-        beta = 0.5
+        sabr.save(beta)
+
+        Dataviewer.plot(pd.DataFrame({
+            "strike": K,
+            "maturity": T,
+            "iv": ivol
+        }))
 
         K = np.linspace(K.min(), K.max(), 20)
         T = np.linspace(T.min(), T.max(), 20)
+        pred_ivol = sabr.smooth_surface(S, K, T, rf=rf, div=div, beta=beta)
 
-        iv = sabr.smooth_surface(S, K, T, rf=rf, div=div, beta=beta)
-        Dataviewer.plot_ravel(K, T, iv)
+        Dataviewer.plot_ravel(K, T, pred_ivol)
 
 
 if __name__ == '__main__':

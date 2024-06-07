@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.data import Dataviewer, VolatilityDataset
+from src.dataset import Dataviewer, VolatilityDataset
 from src.sabr import SABR
 
 
