@@ -84,26 +84,33 @@ class Dataviewer:
     def __init__(self):
         matplotlib.use('TkAgg')
 
-    def plot(self, df):
-        x = df["strike"].values
-        y = df["maturity"].values
-        z = df["iv"].values
+    @classmethod
+    def plot(cls, df):
+        k = df["strike"].values
+        t = df["maturity"].values
+        ivol = df["iv"].values
 
-        plot(x, y, z)
-
-
-def plot(k, t, ivol, ax=None, cmap='viridis'):
-    fig = None
-    if ax is None:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-    ax.plot_trisurf(k, t, ivol, cmap=cmap)
 
-    ax.set_xlabel('Strike')
-    ax.set_ylabel('Maturity')
-    ax.set_zlabel('IV')
+        ax.plot_trisurf(k, t, ivol, cmap='viridis')
 
-    return fig, ax
+        ax.set_xlabel('Strike')
+        ax.set_ylabel('Maturity')
+        ax.set_zlabel('IV')
+        plt.show()
+
+    @classmethod
+    def plot_ravel(cls, K, T, iv):
+        strikes_grid, maturities_grid = np.meshgrid(K, T, indexing='ij')
+        df = pd.DataFrame({
+            "strike": strikes_grid.ravel(),
+            "maturity": maturities_grid.ravel(),
+            "iv": iv.ravel()
+        })
+
+        cls.plot(df)
+        plt.show()
 
 
 if __name__ == "__main__":

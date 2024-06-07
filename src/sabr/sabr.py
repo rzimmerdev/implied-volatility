@@ -1,89 +1,128 @@
+import warnings
+
 import numpy as np
-from matplotlib import pyplot as plt
-from scipy.optimize import minimize
-
-
-class SABRModel:
-    @classmethod
-    def forward(cls, t, s, r, d: float = 0.0):
-        return s * np.exp((r - d) * t)
-
-    @classmethod
-    def z(cls, volvol, alpha, beta, f, k):
-        return volvol / alpha * (f * k) ** ((1 - beta) / 2) * np.log(f / k)
-
-    @classmethod
-    def x(cls, volvol, alpha, beta, f, k, rho):
-        return np.log(np.maximum(
-            (np.sqrt(1 - 2 * rho * cls.z(volvol, alpha, beta, f, k) + cls.z(volvol, alpha, beta, f, k) ** 2) +
-             cls.z(volvol, alpha, beta, f, k) - rho) / (1 - rho), 1e-9))
-
-    @classmethod
-    def ivol(cls, alpha, beta, rho, volvol, s, k, t, r, d: float = 0.0):
-        f = cls.forward(t, s, r, d)
-        return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (cls.x(volvol, alpha, beta, f, k, rho) ** 2) / 24 +
-                                                      (cls.x(volvol, alpha, beta, f, k, rho) ** 4) / 1920)
-
-    @classmethod
-    def ivol_vectorized(cls, i, x):
-        alpha, beta, rho, volvol = i
-        s, k, t, r, d = x.T
-
-        f = cls.forward(t, s, r, d)
-        x = cls.x(volvol, alpha, beta, f, k, rho)
-        return alpha * (f * k) ** ((1 - beta) / 2) * (1 + (x ** 2) / 24 + (x ** 4) / 1920)
-
-    @classmethod
-    def fit(cls, x, y, initial_guess=None):
-        def error(i):
-            try:
-                with np.errstate(divide='raise'):
-                    return np.sum((cls.ivol_vectorized(i, x) - y) ** 2)
-            except FloatingPointError:
-                print(i)
-                return 1e9
-
-        if initial_guess is None:
-            initial_guess = [0.1, 0.5, 0.1, 0.1]
-        i0 = np.array(initial_guess)
-        bounds = [(1e-16, None), (1e-16, 1), (-1 + 1e-9, 1 - 1e-9), (0, None)]
-
-        res = minimize(error, i0, method='L-BFGS-B', bounds=bounds)
-
-        return res.x
+from scipy.optimize import minimize, curve_fit, OptimizeWarning
+from tqdm import tqdm
 
 
 class SABR:
-    def __init__(self, alpha, beta, rho, volvol):
-        self.alpha = alpha
-        self.beta = beta
-        self.rho = rho
-        self.volvol = volvol
+    @staticmethod
+    def forward(t, S, rf, div: float = 0.0):
+        return S * np.exp((rf - div) * t)
 
-    def ivol(self, s, k, t, r, d):
-        return SABRModel.ivol(self.alpha, self.beta, self.rho, self.volvol, s, k, t, r, d)
+    @classmethod
+    def _ivol(cls, alpha, beta, rho, volvol, F, K, t):
+        output = np.zeros_like(K)
 
-    def ivol_vectorized(self, x):
-        return SABRModel.ivol_vectorized([self.alpha, self.beta, self.rho, self.volvol], x)
+        for idx, k in enumerate(K):
+            if np.isclose(k, F):
+                part_1 = (1.0 - beta) ** 2.0 * alpha ** 2.0 / (24.0 * F ** (2.0 - 2.0 * beta))
+                part_2 = rho * beta * alpha * volvol / (4.0 * F ** (1.0 - beta))
+                part_3 = (2.0 - 3.0 * rho ** 2) * volvol ** 2.0 / 24.0
 
-    def __call__(self, *args, **kwargs):
-        if len(args) == 1:
-            return self.ivol_vectorized(*args, **kwargs)
-        else:
-            return self.ivol(*args, **kwargs)
+                output[idx] = (alpha / F ** (1 - beta)) * (1 + (part_1 + part_2 + part_3) * t)
+            else:
+                logfK = np.log(F / k)
+                fkbpow = (F * k) ** ((1.0 - beta) / 2.0)
+                z = volvol * fkbpow * logfK / alpha
+                xz = np.log((np.sqrt(np.clip(1.0 - 2.0 * rho * z + z ** 2.0, 0, 1e16)) + z - rho) / (1.0 - rho))
+
+                part_1 = ((1.0 - beta) ** 2.0) * (alpha ** 2.0) / (24.0 * fkbpow ** 2.0)
+                part_2 = (rho * beta * volvol * alpha) / (4.0 * fkbpow)
+                part_3 = (2.0 - 3.0 * rho ** 2) * volvol ** 2.0 / 24.0
+                part_4 = ((1.0 - beta) ** 2) * (logfK ** 2) / 24.0
+                part_5 = ((1.0 - beta) ** 4) * (logfK ** 4) / 1920.0
+
+                output[idx] = (alpha * z * (1 + (part_1 + part_2 + part_3) * t)) / (
+                        fkbpow * xz * (1 + part_4 + part_5))
+
+        return output
+
+    @classmethod
+    def ivol(cls, alpha, beta, rho, volvol, S, K, t, rf, div):
+        F = cls.forward(t, S, rf, div)
+
+        return cls._ivol(alpha, beta, rho, volvol, F, K, t)
+
+    @classmethod
+    def _calibrate_alpha(cls, beta, rho, volvol, ivol, F, K, t):
+        # p_3 = -ivol_atm
+        p_3 = -ivol[np.argmin(np.abs(F - K))]
+        p_2 = (1 + (2 - 3 * rho ** 2) * volvol ** 2 * t / 24) / F ** (1. - beta)
+        p_1 = rho * beta * volvol * t / (4 * F ** (2 - 2 * beta))
+        p_0 = (1 - beta) ** 2 * t / (24 * F ** (3 - 3 * beta))
+
+        coeffs = [p_0, p_1, p_2, p_3]
+
+        roots = np.roots(coeffs)
+
+        return roots[(roots.imag == 0) & (roots.real >= 0)].real.min()
+
+    @classmethod
+    def calibrate_alpha(cls, beta, rho, volvol, ivol, S, K, t, rf, div):
+        F = cls.forward(t, S, rf, div)
+        return cls._calibrate_alpha(beta, rho, volvol, ivol, F, K, t)
+
+    @classmethod
+    def fit_sabr(cls, ivol, S, K, t, rf, div, beta=None, p0=None):
+        def func(k, rho, volvol):
+            alpha = cls.calibrate_alpha(beta, rho, volvol, ivol, S, k, t, rf, div)
+            return cls.ivol(alpha, beta, rho, volvol, S, k, t, rf, div)
+
+        x = K
+        y = ivol
+
+        p0 = p0 if p0 is not None else (0.1, 0.1)
+
+        if beta is None:
+            betas = np.linspace(0.1, 0.9, 9)
+            prev = np.inf
+            best = None
+            for b in betas:
+                beta = b
+                try:
+                    res = curve_fit(func, x, y, p0)
+                except RuntimeError:
+                    continue
+                err = np.sum((y - func(x, *res[0])) ** 2)
+                if err < prev:
+                    prev = err
+                    best = b
+            beta = best
+
+            with warnings.catch_warnings():
+                warnings.simplefilter('always', OptimizeWarning)
+                res = curve_fit(func, x, y, p0)
+
+        rho, volvol = res[0]
+        alpha = cls.calibrate_alpha(beta, rho, volvol, ivol, S, K, t, rf, div)
+
+        return alpha, beta, rho, volvol
 
 
 class ParametricSABR:
-    def __init__(self, rf, div, prev_tenor: dict = None):
-        self.corrected_p = np.zeros(5)
-        self.corrected_q = np.zeros(3)
-        self.corrected_r = np.zeros(4)
+    def __init__(self, p=None, q=None, r=None):
+        self.p = np.zeros(5) if p is None else p
+        self.q = np.zeros(4) if q is None else q
+        self.r = np.zeros(4) if r is None else r
 
-        self.rf = rf
-        self.div = div
+    def set_params(self, p, q, r):
+        self.p = p
+        self.q = q
+        self.r = r
+
+    def ivol(self, s, k, t, r, d, beta):
+        alpha = self.alpha(t, self.p)
+        rho = self.rho(t, self.q)
+        volvol = self.volvol(t, self.r)
+
+        return SABR.ivol(alpha, beta, rho, volvol, s, k, t, r, d)
+
+    def __call__(self, *args, **kwargs):
+        return self.ivol(*args, **kwargs)
 
     @staticmethod
-    def alpha(t, p):
+    def alpha(t, p):  # p = (5,)
         try:
             with np.errstate(invalid='raise', over='raise'):
                 return p[0] + p[3] / p[4] * (1 - np.exp(-p[4] * t)) / (p[4] * t) + p[1] / p[2] * np.exp(-p[2] * t)
@@ -91,48 +130,55 @@ class ParametricSABR:
             return 1e-16
 
     @staticmethod
-    def rho(t, q):
+    def rho(t, q):  # q = (4,)
         return q[0] + q[1] * t + q[2] * np.exp(-q[3] * t)
 
     @staticmethod
-    def volvol(t, r):
+    def volvol(t, r):  # r = (4,)
         return r[0] + r[1] * np.power(np.maximum(t, 1e-16), r[2] + 1e-16) * np.exp(np.clip(r[3] * t + 1e-16, -1e2, 5e2))
 
-    @staticmethod
-    def param_star(func, size, candidates):  # Candidates \mathcal{S} = {(t, param^{t})}
+    @classmethod
+    def fit(cls, func, size, candidates, bounds=None):  # Candidates \mathcal{S} = {(t, param^{t})}
         def error(param):
-            try:
-                with np.errstate(invalid='raise', over='raise'):
-                    err = np.sum((np.subtract(func(candidates[:, 0], param), candidates[:, 1])) ** 2)  # 0 is tenor, 1 is value (alpha, rho, volvol)
-            except FloatingPointError:
-                err = 1e9
-            return err
+            return np.sum((np.subtract(func(candidates[:, 0], param),
+                                       candidates[:, 1])) ** 2)
 
         initial_guess = np.random.rand(size)
-        res = minimize(error, initial_guess, method='L-BFGS-B')
+        res = minimize(error, initial_guess, method='L-BFGS-B', bounds=bounds)
 
         return res.x
 
     @classmethod
-    def p_star(cls, candidates):
-        return cls.param_star(cls.alpha, 5, candidates)
+    def p_alpha(cls, candidates):
+        bounds = [(1e-16, None) for _ in range(5)]
+        return cls.fit(cls.alpha, 5, candidates, bounds)
 
     @classmethod
-    def q_star(cls, candidates):
-        return cls.param_star(cls.rho, 4, candidates)
+    def p_rho(cls, candidates):
+        bounds = [(-1 + 1e-9, 1 - 1e-9), (None, None), (None, None), (0, None)]
+        return cls.fit(cls.rho, 4, candidates, bounds)
 
     @classmethod
-    def r_star(cls, candidates):
-        return cls.param_star(cls.volvol, 4, candidates)
+    def p_volvol(cls, candidates):
+        bounds = [(None, None), (None, None), (None, None), (None, None)]
+        return cls.fit(cls.volvol, 4, candidates, bounds)
 
-    def smooth_surface(self, S, K, T, star_params, beta=0.5):
+    @classmethod
+    def fit_params(cls, candidates: dict):
+        p = cls.p_alpha(candidates["alpha"])
+        q = cls.p_rho(candidates["rho"])
+        r = cls.p_volvol(candidates["volvol"])
+
+        return p, q, r
+
+    def smooth_surface(self, S, K, T, rf=0.0, div=0.0, beta=0.5):
         iv = np.zeros((len(T), len(K)))
 
-        for idx, i in enumerate(T):
-            alpha = self.alpha(i, star_params["p"])
-            rho = self.rho(i, star_params["q"])
-            volvol = self.volvol(i, star_params["r"])
+        alpha = self.alpha(T, self.p)
+        rho = self.rho(T, self.q)
+        volvol = self.volvol(T, self.r)
 
-            iv[idx] = SABRModel.ivol(alpha, beta, rho, volvol, S, K, i, self.rf, self.div)  # shape: (len(K),)
+        for idx, i in tqdm(enumerate(T), total=len(T)):
+            iv[idx] = SABR.ivol(alpha[idx], beta, rho[idx], volvol[idx], S, K, i, rf, div)
 
         return iv  # shape: (len(T), len(K))

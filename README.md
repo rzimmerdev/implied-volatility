@@ -30,7 +30,7 @@ this project seeks to provide a more interpretable and efficient approach to app
    ```
    pip install -r requirements.txt
    ```
-   
+
 ## How to Run
 1. Ensure you have Python and PyTorch installed on your system.
 2. Prepare your data: The input data should include a set of options with corresponding market prices and parameters,
