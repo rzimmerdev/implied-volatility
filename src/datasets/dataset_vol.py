@@ -10,6 +10,12 @@ from torch.utils.data import Dataset
 
 
 class VolatilityDataset(Dataset):
+    """
+    Dataset for volatility data:
+
+    - Input variables are S, K, T, rf, div;
+    - Target is implied volatility.
+    """
     def __init__(self, path="dataset", file="archive"):
         super().__init__()
         self.path = path
@@ -41,6 +47,7 @@ class VolatilityDataset(Dataset):
 
         self.data["r"] = r
         self.data["d"] = d
+        return self
 
     def preprocess(self):
         # divide daysToExpiration by calendar days
@@ -67,12 +74,22 @@ class VolatilityDataset(Dataset):
             (self.data["strike"] >= strike[0]) & (self.data["strike"] <= strike[1]) &
             (self.data["dt"] == date)]
 
+    def sample(self, idx=0):
+        values, target = self[idx]
+
+        return target, values[0, 0], values[:, 1], values[:, 2], values[0, 3], values[0, 4]  # iv, S, K, T, rf, div
+
     def __len__(self):
         return len(self.dates)
 
     def __getitem__(self, idx):
-        # useful columns = S (underlying price), K (strike price), T (time to maturity),
-        # r (risk free rate), d (dividend rate), IV (implied volatility)
+        # columns =
+        # S (underlying price),
+        # K (strike price),
+        # T (time to maturity),
+        # rf (risk free rate),
+        # div (dividend rate),
+        # iv (implied volatility)
         date = self.dates[idx]
 
         data = self.data[self.data["dt"] == date]
@@ -98,7 +115,6 @@ class Dataviewer:
         ax.set_xlabel('Strike')
         ax.set_ylabel('Maturity')
         ax.set_zlabel('IV')
-        plt.show()
 
     @classmethod
     def plot_ravel(cls, K, T, iv):
@@ -110,20 +126,7 @@ class Dataviewer:
         })
 
         cls.plot(df)
+
+    @classmethod
+    def show(cls):
         plt.show()
-
-
-if __name__ == "__main__":
-    dataset = VolatilityDataset()
-    # https://www.kaggle.com/datasets/shawlu/option-spy-dataset-combinedcsv
-    dataset.load("option_SPY_dataset_combined.csv")
-    print(dataset.data.head())
-    print(dataset.data.columns)
-
-    data = dataset.get((-np.inf, np.inf), (300, 400), "2021-01-04")
-    item = dataset[0]
-    print(np.unique(dataset.dates).shape)
-
-    viewer = Dataviewer()
-    viewer.plot(data)
-    plt.show()
