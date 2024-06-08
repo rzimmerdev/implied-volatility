@@ -4,16 +4,16 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from src.dataset import Dataviewer, VolatilityDataset
+from src.datasets.dataset_vol import Dataviewer, VolatilityDataset
 from src.sabr import ParametricSABR
 
 
-class MyTestCase(unittest.TestCase):
-    def sample_surface(self):
+class TestParametricSABR(unittest.TestCase):
+    def sample_surface(self, idx=0):
         dataset = VolatilityDataset("../dataset")
         dataset.load("../dataset/option_SPY_dataset_combined.csv")
 
-        return dataset[0]
+        return dataset[idx]
 
     def test_parametric(self):
         values, target = self.sample_surface()
@@ -46,7 +46,7 @@ class MyTestCase(unittest.TestCase):
         Dataviewer.plot_ravel(K, T, iv)
 
     def test_pstar(self):
-        values, target = self.sample_surface()
+        values, target = self.sample_surface(6)
         S = values[0, 0]
         K = values[:, 1]
         T = values[:, 2]
@@ -57,15 +57,12 @@ class MyTestCase(unittest.TestCase):
         logger.setLevel(logging.INFO)
 
         ivol = target
-        beta = ParametricSABR.optim_beta(ivol, S, K, T, rf, div, None, logger)
-        print(f"Best beta: {beta}")
-
-        candidates = ParametricSABR.fit_candidates(ivol, S, K, T, rf, div, beta, logger)
-        p, q, r = ParametricSABR.fit_params(candidates)
+        p, q, r, beta = ParametricSABR.optim(ivol, S, K, T, rf, div)
         sabr = ParametricSABR(p, q, r)
         sabr.save(beta)
 
-        Dataviewer.plot(pd.DataFrame({
+        v = Dataviewer()
+        v.plot(pd.DataFrame({
             "strike": K,
             "maturity": T,
             "iv": ivol
@@ -75,7 +72,8 @@ class MyTestCase(unittest.TestCase):
         T = np.linspace(T.min(), T.max(), 20)
         pred_ivol = sabr.smooth_surface(S, K, T, rf=rf, div=div, beta=beta)
 
-        Dataviewer.plot_ravel(K, T, pred_ivol)
+        v.plot_ravel(K, T, pred_ivol)
+        v.show()
 
 
 if __name__ == '__main__':
