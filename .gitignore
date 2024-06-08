@@ -9,5 +9,8 @@
 *.aux
 
 *.csv
+dataset/*.csv
+weights/*.pth
 lightning_logs/
 __pycache__/
+
