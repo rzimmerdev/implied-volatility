@@ -50,14 +50,14 @@ O nosso modelo transformer foi treinado em cima do conjunto de dados, de aproxim
 \begin{figure}
 	\begin{center}
 		\includegraphics[width=8cm]{resources/pred_surface.png}
-		\caption{Superfície gerada utilizando as pontuações retiradas do Transformer e dos modelos SABR otimizados com os novos candidatos}
+		\caption{Superfície gerada utilizando um modelo SABR com parâmetros otimizados manualmente. Note que a não-remoção de \textit{outliers} gerou um pico na superfície}
 	\end{center}
 \end{figure}
 
 \begin{figure}
 	\begin{center}
-		\includegraphics[width=8cm]{resources/real_surface.png}
-		\caption{Superfície interpolada linearmente, percebe-se grande rigidez nos pontos intermediários}
+		\includegraphics[width=16cm]{resources/sst.png}
+		\caption{Comparação da superfície real com a gerada após treinamento do Transformer. Na esquerda, a superfície do modelo SST, na direita, a superfície interpolada linearmente}
 	\end{center}
 \end{figure}
 	
