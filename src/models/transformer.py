@@ -5,7 +5,7 @@ from torch import optim
 
 class SelfAttention(nn.Module):
     """
-    Attention for the transformer model.
+    Attention for the transformer models.
     Accepts continuous data.
     """
 
@@ -85,27 +85,3 @@ class TransformerEncoder(nn.Module):
         if self.fc_out is not None:
             x = self.fc_out(x)
         return x
-
-
-def main():
-    x = torch.rand(64, 11, 4)
-    y = torch.rand(64, 11, 1)
-
-    model = TransformerEncoder(4, 4, 4, 2, 0.5, 1)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    output = None
-
-    for epoch in range(100):
-        optimizer.zero_grad()
-        output = model(x)
-        loss = criterion(output, y)
-        loss.backward()
-        optimizer.step()
-        print(loss)
-
-    print(output)
-
-
-if __name__ == "__main__":
-    main()

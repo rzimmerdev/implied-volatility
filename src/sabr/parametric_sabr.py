@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.optimize import minimize, OptimizeWarning
-from tqdm import tqdm
-from sabr import SABR
+from .sabr import SABR
 
 
 class ParametricSABR:
@@ -48,7 +47,27 @@ class ParametricSABR:
             1e-16, None)
 
     @classmethod
+    def funcs(cls):
+        return {
+            "alpha": cls.alpha,
+            "rho": cls.rho,
+            "volvol": cls.volvol
+        }
+
+    @classmethod
     def fit(cls, func, size, candidates, bounds=None):  # Candidates \mathcal{S} = {(t, param^{t})}
+        """
+        Fit a parameter function to a set of possible candidates using the L-BFGS-B optimization method.
+        A candidate is a tuple of (t, param^{t}),
+        where param is one of the parameters of the SABR models (alpha, rho, volvol).
+
+        :param func: Callable function to fit, can be either ParametricSABR.alpha, ParametricSABR.rho or ParametricSABR.volvol
+        :param size: Array size of the parameter in question, 5 for alpha, 4 for rho and volvol
+        :param candidates: Array of candidates
+        :param bounds: Bounds for the optimization, for the alpha parameter,
+        the bounds are [(1e-16, None) for _ in range(5)], etc.
+        :return: The resulting optimized parameter, in the form of an array (size,), either P, Q or R
+        """
         def error(param):
             return np.sum((np.subtract(func(candidates[:, 0], param),
                                        candidates[:, 1])) ** 2)
@@ -59,29 +78,40 @@ class ParametricSABR:
         return res.x
 
     @classmethod
-    def p_alpha(cls, candidates):
+    def fit_p(cls, candidates):
         bounds = [(1e-16, None) for _ in range(5)]
         return cls.fit(cls.alpha, 5, candidates, bounds)
 
     @classmethod
-    def p_rho(cls, candidates):
+    def fit_q(cls, candidates):
         bounds = [(-1 + 1e-9, 1 - 1e-9), (None, None), (None, None), (0, None)]
         return cls.fit(cls.rho, 4, candidates, bounds)
 
     @classmethod
-    def p_volvol(cls, candidates):
+    def fit_r(cls, candidates):
         bounds = [(None, None), (None, None), (None, None), (None, None)]
         return cls.fit(cls.volvol, 4, candidates, bounds)
 
     @classmethod
     def fit_params(cls, candidates: dict):
-        p = cls.p_alpha(candidates["alpha"])
-        q = cls.p_rho(candidates["rho"])
-        r = cls.p_volvol(candidates["volvol"])
-
-        return p, q, r
+        return cls.fit_p(candidates["alpha"]), cls.fit_q(candidates["rho"]), cls.fit_r(candidates["volvol"])
 
     def smooth_surface(self, S, K, T, rf=0.0, div=0.0, beta=0.5):
+        """
+        Generate a smooth surface of implied volatilities using the Parametric SABR models.
+        Attributes P, Q, R are used to generate the surface.
+
+        :param S: Fixed Spot price
+        :param K: Array of possible strike prices
+        :param T: Array of possible maturities
+        :param rf: Risk-free rate
+        :param div: Dividend yield
+        :param beta: Beta parameter, default is 0.5
+        :return: Array of implied volatilities, for each combination of K and T
+        """
+        if self.p is None or self.q is None or self.r is None:
+            raise ValueError("Parameters not set")
+
         iv = np.zeros((len(T), len(K)))
 
         alpha = self.alpha(T, self.p)
@@ -93,7 +123,12 @@ class ParametricSABR:
 
         return iv  # shape: (len(T), len(K))
 
-    def fit_candidates(self, ivol, S, K, T, rf, div, beta, logger=None):
+    @staticmethod
+    def candidates(ivol, S, K, T, rf, div, beta):
+        """
+        Obtain parameters alpha, beta, rho and volvol for each maturity in T.
+        The parameters are obtained by fitting a SABR models to the observed IVOL data.
+        """
         maturities = np.unique(T)
 
         candidates = {"alpha": [], "rho": [], "volvol": []}
@@ -121,30 +156,47 @@ class ParametricSABR:
 
         return {candidate: np.array(candidates[candidate]) for candidate in candidates}
 
-    def optim_beta(self, ivol, S, K, T, rf, div, beta, logger=None):
+    @classmethod
+    def optim(cls, ivol, S, K, T, rf, div, beta=None):
+        """
+        Finds the best combination P, Q, R for a Parametric SABR models, given daily observed IVOL data.
+
+        :param ivol: Array of observed IVOL data
+        :param S: Spot price
+        :param K: Array of strike prices
+        :param T: Array of maturities
+        :param rf: Risk-free rate
+        :param div: Dividend yield
+        :param beta: Beta parameter, if None, it will also be optimized
+        :return:
+        """
         prev = np.inf
-        best = None
+        best = beta
 
-        for b in tqdm(np.linspace(0.1, 0.9, 9) if beta is None else [beta]):
-            beta = b
+        if beta is None:
+            for b in np.linspace(0.1, 0.9, 9):
+                beta = b
 
-            candidates = ParametricSABR.fit_candidates(ivol, S, K, T, rf, div, beta, logger)
-            p, q, r = ParametricSABR.fit_params(candidates)
-            sabr = ParametricSABR(p, q, r)
+                candidates = cls.candidates(ivol, S, K, T, rf, div, beta)
+                p, q, r = cls.fit_params(candidates)
+                sabr = cls(p, q, r)
 
-            pred_iv = sabr.ivol(S, K, T, rf, div, beta)
-            real_iv = ivol
+                pred_iv = sabr.ivol(S, K, T, rf, div, beta)
+                real_iv = ivol
 
-            mask = np.abs(pred_iv - real_iv) < 6 * real_iv.std()
-            pred_iv = pred_iv[mask]
-            real_iv = real_iv[mask]
+                mask = np.abs(pred_iv - real_iv) < 6 * real_iv.std()
+                pred_iv = pred_iv[mask]
+                real_iv = real_iv[mask]
 
-            err = mae(real_iv, pred_iv)
-            if err < prev:
-                prev = err
-                best = b
+                err = mae(real_iv, pred_iv)
+                if err < prev:
+                    prev = err
+                    best = b
 
-        return best
+        candidates = cls.candidates(ivol, S, K, T, rf, div, best)
+        p, q, r = cls.fit_params(candidates)
+
+        return p, q, r, best
 
 
 def mae(x, y):

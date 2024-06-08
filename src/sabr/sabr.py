@@ -104,9 +104,10 @@ class SABR:
                     best = b
             beta = best
 
+        bounds = ((-1, 0), (1, np.inf))
         with warnings.catch_warnings():
             warnings.filterwarnings('error')
-            res = curve_fit(func, x, y, p0)
+            res = curve_fit(func, x, y, p0, bounds=bounds)
 
         rho, volvol = res[0]
         alpha = cls.calibrate_alpha(beta, rho, volvol, ivol, S, K, t, rf, div)
