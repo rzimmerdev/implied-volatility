@@ -1,4 +1,4 @@
-# implicit-layers
+# implied-volatility
 
 ## About
 This is the code for the report on `Transformers para Geração de Superfícies Suaves de Volatilidade Implícita`,
