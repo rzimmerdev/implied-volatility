@@ -59,6 +59,9 @@ class LitSST(lightning.LightningModule):
         if loss is None or np.isnan(loss.item()) or np.isinf(loss.item()):
             raise ValueError(f"Loss is None for batch {batch_idx}")
 
+        # log
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+
         # log loss
         self.losses.append(loss.item())
 
@@ -100,9 +103,9 @@ class MultiSST:
         data_r = ParamDataset(ssv_dataset, "volvol")
 
         trainer = lightning.Trainer(max_epochs=epochs)
-        dataloader_p = torch.utils.data.DataLoader(data_p, batch_size=1, shuffle=True)
-        dataloader_q = torch.utils.data.DataLoader(data_q, batch_size=1, shuffle=True)
-        dataloader_r = torch.utils.data.DataLoader(data_r, batch_size=1, shuffle=True)
+        dataloader_p = torch.utils.data.DataLoader(data_p, batch_size=64, num_workers=8, shuffle=True)
+        dataloader_q = torch.utils.data.DataLoader(data_q, batch_size=64, num_workers=8, shuffle=True)
+        dataloader_r = torch.utils.data.DataLoader(data_r, batch_size=64, num_workers=8, shuffle=True)
 
         # train alpha, then rho, then volvol
         trainer.fit(self.z_alpha, dataloader_p)

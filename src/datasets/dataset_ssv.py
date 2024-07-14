@@ -109,6 +109,7 @@ class SSVDataset:
         funcs = ParametricSABR.funcs()
         z_funcs = SSV.z_funcs()
 
+        print("Preprocessing data...")
         for idx in tqdm(range(len(self._vol_dataset))):
             with np.errstate(all='ignore'):
                 candidates, z_scores, current_params = self._preprocess_day(idx)
@@ -117,6 +118,10 @@ class SSVDataset:
                     rows = self.get_inputs(idx, z_funcs[key], funcs[key], candidates[key], fixed_maturities, prev_params[key])
                     self.data[key] = pd.concat([self.data[key], pd.DataFrame(rows, columns=input_columns + output_columns)])
 
+        print("Data preprocessed.")
+
         # save to csv: alpha.csv, rho.csv, volvol.csv
         for key in self.data.keys():
             self.data[key].to_csv(f"{self.path}dataset_{key}.csv", index=False)
+
+        print("Data saved.")
