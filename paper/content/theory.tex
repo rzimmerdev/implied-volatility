@@ -1,32 +1,32 @@
-\section{Fundamentação Teórica e Desenvolvimento}
-\subsection{Formulação do Modelo SABR}
+\section{Implementation of a Parametetric SABR Model and Implied Neural Network Architectures}
+\subsection{Defining the SABR Model Equations}
 
-O modelo SABR é definido por um conjunto de equações diferenciais estocásticas que descrevem a dinâmica do preço a termo e sua volatilidade. Os parâmetros do modelo incluem:
+The SABR model a stochastic differential model, defined by the following equations in which the dynamics of the forward price and the corresponding volatility levels are used to calculate the implied volatility.
 \begin{itemize}
-	\item \textbf{Alpha (\(\alpha\))}: O nível inicial da volatilidade.
-	\item \textbf{Beta (\(\beta\))}: O parâmetro de elasticidade que determina a dependência da volatilidade em relação ao preço do ativo.
-	\item \textbf{Rho (\(\rho\))}: A correlação entre o preço do ativo e sua volatilidade.
-	\item \textbf{Volvol (\(\nu\))}: A volatilidade do processo de volatilidade.
+	\item \textbf{Alpha (\(\alpha\))}: This is the initial volatility level.
+	\item \textbf{Beta (\(\beta\))}: The elasticity parameter between the volatility of the asset and its price.
+	\item \textbf{Rho (\(\rho\))}: Statistical correlation between the asset price and its volatility.
+	\item \textbf{Volvol (\(\nu\))}: The volatility of the volatility process itself.
 \end{itemize}
 
-A função de volatilidade implícita do modelo SABR é dada por:
+The implied volatility function of the SABR model is then given by:
 
 \begin{equation}
 	\sigma_{\textit{BS}}(f, K) = 
 	\alpha \frac{(fK)^{\frac{1 - \beta}{2}}}{1 + \left(\frac{(1 - \beta)^2 \rho^2}{24} + \frac{(1 - \beta)^2(2 - 3\rho^2)}{1920} \right) (fK)^{1 - \beta}}
 \end{equation}
 
-No contexto deste trabalho, serão gerados diversos modelos SABR diariamente, correspondendo à cada nível de maturidade diferente. Para tal, foi utilizado uma função contínua para mapear as diferentes maturidades para os parâmetros do modelo. São utilizadas 3 variáveis que codificam os níveis de maturidade, sendo elas:
+In the context of this paper, multiple SABR models are fitted daily, corresponding to each unique maturity value at the respective day. A continuous function is used to map the different maturities to the three model parameters (values for $\beta$ are fixed and remain unchanged). The three variables used to encode the maturity levels are the following:
 
 \begin{itemize}
-	\item \textbf{P}: Dada uma função $f_{\alpha}(\cdot, \textbf{P}) \rightarrow \mathbb{R}$, os valores $\alpha$ dos diversos modelos \textit{SABR} são codificados dado um único vetor P, tal que $\textbf{P} \in R^{5}$.
+	\item \textbf{P}: Given a function $f_{\alpha}(\cdot, \textbf{P}) \rightarrow \mathbb{R}$, the values for $\alpha$ for each individual \textit{SABR} model are encoded by P, such that $\textbf{P} \in R^{5}$.
 	
-	\item \textbf{Q}: Dada uma função $f_{\rho}(\cdot, \textbf{Q}) \rightarrow \mathbb{R}$, os valores $\rho$ dos diversos modelos \textit{SABR} são codificados dado um único vetor Q, tal que $\textbf{Q} \in R^{4}$.
+	\item \textbf{Q}: Given a function $f_{\rho}(\cdot, \textbf{Q}) \rightarrow \mathbb{R}$, the values for $\rho$ for each individual \textit{SABR} model are encoded by Q, such that $\textbf{Q} \in R^{4}$.
 	
-	\item \textbf{R}: Dada uma função $f_{\nu}(\cdot, \textbf{R}) \rightarrow \mathbb{R}$, os valores $\nu$ dos diversos modelos \textit{SABR} são codificados dado um único vetor R, tal que $\textbf{R} \in R^{4}$.
+	\item \textbf{R}: Given a function $f_{\nu}(\cdot, \textbf{R}) \rightarrow \mathbb{R}$, the values for $\nu$ for each individual \textit{SABR} model are encoded by R, such that $\textbf{R} \in R^{4}$.
 \end{itemize}
 
-As funções $f_{\alpha}, f_{\rho}$, e $f_{\nu}$ são dadas de acordo com as expressões:
+And finally, our daily parametric SABR model is given by the set of encoded parameters $\{P, Q, R\}$ and the following equations to calculate values for $f_{\alpha}, f_{\rho}$, e $f_{\nu}$ at each unique maturity value $t$:
 
 \begin{equation}
 	f_{\alpha}(t, p) = p_0 + \frac{p_3}{p_4} \left( \frac{1 - e^{-p_4 t}}{p_4 t} \right) + \frac{p_1}{p_2} e^{-p_2 t}

@@ -31,13 +31,12 @@ class ParametricSABR:
     @staticmethod
     def alpha(t, p):  # p = (5,)
         try:
-            with np.errstate(invalid='raise', over='raise'):
-                return p[0] + p[3] / p[4] * (1 - np.exp(-p[4] * t)) / (p[4] * t) + p[1] / p[2] * np.exp(-p[2] * t)
+            return p[0] + p[3] / p[4] * (1 - np.exp(-p[4] * t)) / (p[4] * t) + p[1] / p[2] * np.exp(-p[2] * t)
         except FloatingPointError:
             return 1e-16
 
     @staticmethod
-    def rho(t, q):  # q = (4,)
+    def rho(t, q):
         return np.clip(q[0] + q[1] * t + q[2] * np.exp(-q[3] * t), -1 + 1e-9, 1 - 1e-9)
 
     @staticmethod

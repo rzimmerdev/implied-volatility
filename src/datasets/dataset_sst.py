@@ -28,9 +28,3 @@ class ParamDataset(Dataset):
 
         # convert to torch
         return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
-
-    @classmethod
-    def map(cls, rows):
-
-
-        return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)

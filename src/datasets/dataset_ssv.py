@@ -1,4 +1,5 @@
 import os
+import time
 
 import numpy as np
 import pandas as pd
@@ -110,7 +111,7 @@ class SSVDataset:
         z_funcs = SSV.z_funcs()
 
         print("Preprocessing data...")
-        for idx in tqdm(range(len(self._vol_dataset))):
+        for idx in tqdm(range(len(self._vol_dataset)), total=len(self._vol_dataset)):
             with np.errstate(all='ignore'):
                 candidates, z_scores, current_params = self._preprocess_day(idx)
 

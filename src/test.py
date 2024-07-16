@@ -8,23 +8,14 @@ from src.models.sst import MultiSST
 from src.sabr import ParametricSABR
 
 
-def train(checkpoint):
+def preprocess():
     volatility_dataset = VolatilityDataset("dataset").load("option_SPY_dataset_combined.csv")
-    dataset = SSVDataset("dataset").load(volatility_dataset)
-    model = MultiSST(4, 2, 2, 1)
-
-    path = "weights"
-    if checkpoint:
-        path = checkpoint
-    if not model.exists(path):
-        model.train(dataset, epochs=100)
-        model.save_checkpoint(path)
+    return SSVDataset("dataset").load(volatility_dataset), volatility_dataset
 
 
 def test(checkpoint):
     viewer = Dataviewer()
-    volatility_dataset = VolatilityDataset("dataset").load("option_SPY_dataset_combined.csv")
-    dataset = SSVDataset("dataset").load(volatility_dataset)
+    dataset, volatility_dataset = preprocess()
     model = MultiSST(4, 2, 2, 1).load_checkpoint(checkpoint)
 
     idx = 0
@@ -48,12 +39,8 @@ def test(checkpoint):
 
 
 if __name__ == "__main__":
-    # args
     parser = argparse.ArgumentParser()
-    # whether or not to load a checkpoint
     parser.add_argument('--checkpoint', type=str, help='Path to save/load models checkpoint', default="weights")
 
     args = parser.parse_args()
 
-    train(args.checkpoint)
-    test(args.checkpoint)

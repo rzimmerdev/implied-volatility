@@ -15,7 +15,7 @@
 \usepackage{doi}
 \usepackage[portuguese]{babel}
 
-\title{Transformers para Geração de Superfícies Suaves de Volatilidade Implícita}
+\title{Deep Implicit Layers for Smooth Implied Volatility Surface Interpolation}
 
 \author{ 
 	\href{https://orcid.org/0009-0008-6064-9895}{
@@ -43,32 +43,32 @@
 	\texttt{eduardobritoc@usp.br} \\
 }
 
-%\date{}
+\date{15th of July, 2024}
 
 \renewcommand{\headeright}{}
 \renewcommand{\undertitle}{}
-\renewcommand{\shorttitle}{Transformers para Geração de Superfícies Suaves de Volatilidade Implícita}
+\renewcommand{\shorttitle}{Deep Implicit Layers for Smooth Implied Volatility Surface Interpolation}
 
 \hypersetup{
-	pdftitle={Transformers para Geração de Superfícies Suaves de Volatilidade Implícita},
+	pdftitle={Deep Implicit Layers for Smooth Implied Volatility Surface Interpolation},
 	pdfsubject={q-bio.NC, q-bio.QM},
 	pdfauthor={Zimmer, R., Filho, A., Câmara, L.},
-	pdfkeywords={Redes Neurais, Regressão, Volatilidade Implícita, Opções, Derivativos},
+	pdfkeywords={Neural Networks, Implied Volatility, Options, Quantitative Methods, Implicit Layers},
 }
 
 % Redefine abstract name to Resumo
-\addto\captionsportuguese{\renewcommand{\abstractname}{Resumo}}
+\addto\captionsportuguese{\renewcommand{\abstractname}{Abstract}}
 
 \begin{document}
-	\selectlanguage{portuguese}
+	\selectlanguage{english}
 	
 	\maketitle
 	
 	\begin{abstract}
-		Neste trabalho implementamos uma rede neural com arquitetura baseada em \textit{Transformers} para otimização de valores $P, Q, R$ para diversos modelos \textit{SABR} paramétricos (\textit{parametric stochastic $\alpha, \beta, \rho$}) para geração de superfícies de volatilidade implicita no contexto de opções financeiras. A motivação por trás do trabalho é permitir a interpolação e extrapolação suave da superfície, ou seja, tornando-a derivável em todos os pontos. O desenvolvimento da arquitetura tem como principal contribuição solucionar o problema na escolha dos candidatos $\alpha, \rho, volvol$ cujos parâmetros $P, Q, R$ otimizados gerem a superfície com menor oportunidade de arbitragem. Por fim, utilizaremos os valores históricos observados de $\alpha, \rho, volvol$ e a capacidade inata das arquiteturas de transformers para processar observações de sequências com tamanhos não fixos, ou seja, para volatilidades de contratos com data de vencimento variadas e não fixas e gerar as superfícies, comparando os resultados com métodos de interpolação clássicos (linear e \textit{splines}).
+		In the present paper, we implement a neural network architecture based on deep implicit layers with the objective of optimizing daily parameters for the SABR (stochastic alpha, beta, rho). The \(P, Q, R\) values are updated daily and used for generating smooth implied volatility surfaces in the context of financial options. The motivation behind our approach is to enable smooth interpolation and extrapolation of the surface, i.e., making it infinitely differentiable at all points while still maintaining some level of interpretability within our model. The main contribution of the proposed architecture is to solve the problem of selecting candidates $\alpha, \rho, \nu$ which respective surface reduces arbitrage opportunities. Our methodology includes using historical observed values of $\alpha, \rho, \nu$ and the innate ability of transformer architectures to process observations of sequences with non-fixed lengths, i.e., for contracts with varying expiration dates. The generated surfaces are then finally compared with results from classical interpolation methods such as splines and recurrent neural networks.
 	\end{abstract}
 	
-	\keywords{Redes Neurais \and Regressão\and Volatilidade Implícita\and Opções\and Derivativos}
+	\keywords{Neural Networks \and Implied Volatility \and Options \and Quantitative Methods \and Implicit Layers}
 	
 	\include{content/introduction}
 	
