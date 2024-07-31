@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from torch import optim
 
 
 class SelfAttention(nn.Module):
@@ -9,8 +8,8 @@ class SelfAttention(nn.Module):
     Accepts continuous data.
     """
 
-    def __init__(self, in_features, heads):
-        super(SelfAttention, self).__init__()
+    def __init__(self, in_features, heads, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.head_dim = in_features // heads
         self.in_features = in_features
         self.heads = heads
@@ -47,19 +46,24 @@ class SelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, in_features, heads, forward_expansion):
-        super(TransformerBlock, self).__init__()
+    def __init__(self, in_features, heads, forward_expansion, num_layers=1, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.attention = SelfAttention(in_features, heads)
         self.norm1 = nn.LayerNorm(in_features)
         self.norm2 = nn.LayerNorm(in_features)
 
         self.feed_forward = nn.Sequential(
             nn.Linear(in_features, forward_expansion * in_features),
+            nn.Sequential(*[
+                nn.ReLU(),
+                nn.Linear(forward_expansion * in_features, forward_expansion * in_features)
+            ] * (num_layers - 1)),
             nn.ReLU(),
             nn.Linear(forward_expansion * in_features, in_features)
         )
 
     def forward(self, x, mask=None):
+        # x is batch_size x seq_len x in_features
         attention = self.attention(x, x, x, mask)
         x = self.norm1(attention + x)
         forward = self.feed_forward(x)
@@ -68,10 +72,28 @@ class TransformerBlock(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, in_features, heads, num_layers, forward_expansion, dropout, out_features=None):
-        super(TransformerEncoder, self).__init__()
+    def __init__(self,
+                 in_features,
+                 heads,
+                 num_blocks,
+                 num_layers,
+                 forward_expansion,
+                 out_features=None,
+                 dropout=0.5,
+                 *args, **kwargs):
+        """
+        Transformer Encoder for continuous data.
+
+        Args:
+            in_features: int, number of input features
+            heads: int, number of heads in the self-attention layer
+            num_blocks: int, number of transformer blocks
+            num_layers: int, number of layers in the feed forward network
+            forward_expansion: int, expansion factor for the feed forward network
+        """
+        super().__init__(*args, **kwargs)
         self.layers = nn.ModuleList([
-            TransformerBlock(in_features, heads, forward_expansion) for _ in range(num_layers)
+            TransformerBlock(in_features, heads, forward_expansion, num_layers) for _ in range(num_blocks)
         ])
         self.dropout = nn.Dropout(dropout)
         if out_features is not None:

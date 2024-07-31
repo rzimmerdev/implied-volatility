@@ -13,7 +13,7 @@
 \usepackage{graphicx}
 \usepackage{natbib}
 \usepackage{doi}
-\usepackage[portuguese]{babel}
+\usepackage[english]{babel}
 
 \title{Deep Implicit Layers for Smooth Implied Volatility Surface Interpolation}
 
@@ -56,16 +56,13 @@
 	pdfkeywords={Neural Networks, Implied Volatility, Options, Quantitative Methods, Implicit Layers},
 }
 
-% Redefine abstract name to Resumo
-\addto\captionsportuguese{\renewcommand{\abstractname}{Abstract}}
-
 \begin{document}
 	\selectlanguage{english}
 	
 	\maketitle
 	
 	\begin{abstract}
-		In the present paper, we implement a neural network architecture based on deep implicit layers with the objective of optimizing daily parameters for the SABR (stochastic alpha, beta, rho). The \(P, Q, R\) values are updated daily and used for generating smooth implied volatility surfaces in the context of financial options. The motivation behind our approach is to enable smooth interpolation and extrapolation of the surface, i.e., making it infinitely differentiable at all points while still maintaining some level of interpretability within our model. The main contribution of the proposed architecture is to solve the problem of selecting candidates $\alpha, \rho, \nu$ which respective surface reduces arbitrage opportunities. Our methodology includes using historical observed values of $\alpha, \rho, \nu$ and the innate ability of transformer architectures to process observations of sequences with non-fixed lengths, i.e., for contracts with varying expiration dates. The generated surfaces are then finally compared with results from classical interpolation methods such as splines and recurrent neural networks.
+		In this paper, we implement a neural network architecture based on deep implicit layers with the objective of optimizing the parameters of multiple SABR (stochastic alpha, beta, rho) models. The parameter values for the models are updated daily and used for generating smooth implied volatility surfaces in the context of financial options. The motivation behind our approach is to enable smooth interpolation and extrapolation of the surface, i.e., making it infinitely differentiable at all points while still maintaining some level of interpretability within our model when compared to state-of-the-art deep transformer architectures. The main contribution of the proposed architecture is to solve the problem of selecting the candidates $\alpha, \rho, \nu$ to reduce statistical arbitrage opportunities for the respective generated surface. Our methodology includes using historical observed values of $\alpha, \rho, \nu$ and calculated implied volatility for existing contracts, as well as the innate ability of transformer architectures to process observations of sequences with non-fixed lengths, i.e., for contracts with varying expiration dates. The surfaces generated using our approach, as well as the loss scores and surface curvature values are then compared to baseline classical methods such as linear interpolations, splines and recurrent neural networks.
 	\end{abstract}
 	
 	\keywords{Neural Networks \and Implied Volatility \and Options \and Quantitative Methods \and Implicit Layers}

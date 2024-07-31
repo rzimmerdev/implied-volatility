@@ -1,1 +1,1 @@
-from .ssv import SSV
+from .transformer import TransformerEncoder

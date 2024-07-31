@@ -1,7 +1,7 @@
-\section{Implementation of a Parametetric SABR Model and Implied Neural Network Architectures}
+\section{Implementation of a Parametetric SABR Model and Implicit Neural Network Architectures}
 \subsection{Defining the SABR Model Equations}
 
-The SABR model a stochastic differential model, defined by the following equations in which the dynamics of the forward price and the corresponding volatility levels are used to calculate the implied volatility.
+The SABR model is a stochastic differential model, defined by the following equations in which the dynamics of the forward price and the corresponding volatility levels are used to calculate the implied volatility.
 \begin{itemize}
 	\item \textbf{Alpha (\(\alpha\))}: This is the initial volatility level.
 	\item \textbf{Beta (\(\beta\))}: The elasticity parameter between the volatility of the asset and its price.
@@ -19,37 +19,36 @@ The implied volatility function of the SABR model is then given by:
 In the context of this paper, multiple SABR models are fitted daily, corresponding to each unique maturity value at the respective day. A continuous function is used to map the different maturities to the three model parameters (values for $\beta$ are fixed and remain unchanged). The three variables used to encode the maturity levels are the following:
 
 \begin{itemize}
-	\item \textbf{P}: Given a function $f_{\alpha}(\cdot, \textbf{P}) \rightarrow \mathbb{R}$, the values for $\alpha$ for each individual \textit{SABR} model are encoded by P, such that $\textbf{P} \in R^{5}$.
+	\item \textbf{P}: Given a function $\alpha_t = f_{\alpha}(t, \textbf{P}) \rightarrow \mathbb{R}$, the values for $\alpha$ for each individual \textit{SABR} model are encoded by P, such that $\textbf{P} \in \mathbb{R}^{5}$.
 	
-	\item \textbf{Q}: Given a function $f_{\rho}(\cdot, \textbf{Q}) \rightarrow \mathbb{R}$, the values for $\rho$ for each individual \textit{SABR} model are encoded by Q, such that $\textbf{Q} \in R^{4}$.
+	\item \textbf{Q}: Given a function $\rho_t = f_{\rho}(t, \textbf{Q}) \rightarrow \mathbb{R}$, the values for $\rho$ for each individual \textit{SABR} model are encoded by Q, such that $\textbf{Q} \in \mathbb{R}^{4}$.
 	
-	\item \textbf{R}: Given a function $f_{\nu}(\cdot, \textbf{R}) \rightarrow \mathbb{R}$, the values for $\nu$ for each individual \textit{SABR} model are encoded by R, such that $\textbf{R} \in R^{4}$.
+	\item \textbf{R}: Given a function $\nu_t = f_{\nu}(t, \textbf{R}) \rightarrow \mathbb{R}$, the values for $\nu$ for each individual \textit{SABR} model are encoded by R, such that $\textbf{R} \in \mathbb{R}^{4}$.
 \end{itemize}
 
-And finally, our daily parametric SABR model is given by the set of encoded parameters $\{P, Q, R\}$ and the following equations to calculate values for $f_{\alpha}, f_{\rho}$, e $f_{\nu}$ at each unique maturity value $t$:
+And finally, the daily parametric SABR model is given by the set of encoded parameters $\{P, Q, R\}$ and the following equations to calculate values for $f_{\alpha}, f_{\rho}$, e $f_{\nu}$ at each unique maturity value $t$:
 
 \begin{equation}
-	f_{\alpha}(t, p) = p_0 + \frac{p_3}{p_4} \left( \frac{1 - e^{-p_4 t}}{p_4 t} \right) + \frac{p_1}{p_2} e^{-p_2 t}
+	f_{\alpha}(t, \textbf{P}) = p_0 + \frac{p_3}{p_4} \left( \frac{1 - e^{-p_4 t}}{p_4 t} \right) + \frac{p_1}{p_2} e^{-p_2 t}
 \end{equation}
 \begin{equation}
-	f_{\rho}(t, q) = q_0 + q_1 t + q_2 e^{-q_3 t}
+	f_{\rho}(t, \textbf{Q}) = q_0 + q_1 t + q_2 e^{-q_3 t}
 \end{equation}
 \begin{equation}
-	f_{\nu}(t, r) = r_0 + r_1 t^{r_2} e^{r_3 t}
+	f_{\nu}(t, \textbf{R}) = r_0 + r_1 t^{r_2} e^{r_3 t}
 \end{equation}
 
-\subsection{Arquitetura Transformer Utilizada e Etapas de Ajuste de Parâmetros}
+\subsection{Proposed Encoder Architecture and Error Functions}
 
-Transformers são um tipo de arquitetura de rede neural conhecida por sua capacidade de capturar dependências complexas em dados sequenciais. Neste projeto, um transformer encoder é usado para ajustar os parâmetros do modelo SABR (P, Q e R), correspondendo a \(\alpha\), \(\rho\) e \(\nu\) respectivamente. O transformer processa dados históricos de opções e produz estimativas de parâmetros que minimizam o erro entre as volatilidades implícitas do modelo e as volatilidades de mercado observadas.
+Transformers are a type of neural network architecture known for their ability to capture complex dependencies in sequential non-fixed length data. Within our proposed architecture, a transformer encoder is used to obtain the scores for each candidate point from the daily observed input. Then, for each training epoch it estimates a loss score for the mean squared error between the encoder's output and a z-score obtained by Monte Carlo estimation from a candidate set of $k=1e3$ generated subsets from the original set. This is done to calculate the estimated z-score of the point,. Therefore, if the model converges, the network parameters are optimized to estimate daily SS scores for each listed options contract.
 
-Diferente das redes neurais recorrentes (RNNs) e das redes neurais convolucionais (CNNs), os transformers não dependem de uma estrutura sequencial para processar dados. Em vez disso, utilizam um mecanismo de atenção, que permite que cada elemento de entrada (ou token) considere a relação com todos os outros elementos na mesma sequência simultaneamente. Isso é realizado através de uma série de camadas chamadas de encoders (para codificação dos dados de entrada) e decoders (para gerar a saída).
+Unlike recurrent neural networks (RNNs) and convolutional neural networks (CNNs), transformers do not rely on a sequential structure to process data. Instead, they use an attention mechanism, which allows each input element (or token) to consider the relationship with all other elements in the same sequence simultaneously. This is achieved through a series of layers called encoders (for encoding the input data) and decoders (for generating the output).
 
-Transformers são classificados como algoritmos de aprendizado de máquina devido à sua capacidade de aprender padrões e relações a partir de dados. Eles são treinados usando técnicas supervisionadas. No contexto da arquitetura específica que implementamos, utilizamos apenas as camadas do \textit{encoder}, com 4 dimensões de entrada, 2 cabeças de atenção por camada e 4 camadas no total. A etapa de treino do modelo é realizada em cima de dados históricos de opções em cima do papel \textbf{S\&P 500} para o ano de 2021-2022. As épocas de treino do modelo ajustam os pesos da camada com uma função de erro que minimiza a diferença entre suas previsões e os valores das pontuações geradas manualmente. Essa capacidade de aprendizado é o que permite que transformers generalizem bem para novos dados não vistos durante o treinamento, fazendo previsões precisas baseadas nos padrões aprendidos.
+Transformers are classified as machine learning algorithms due to their ability to learn patterns and relationships from data. They are trained using supervised techniques. In the context of the specific architecture we implemented, we use only the encoder layers, with 4 input dimensions, 2 attention heads per layer, and 4 layers in total. The model training stage is carried out on historical option data listed for the \textbf{S\&P 500} from January to December of 2021. The training epochs adjust the layer weights with an error function that minimizes the difference between its predictions and the Monte Carlo expected z-score score values.
 
-A tarefa de ajuste de parâmetros do modelo SABR é especificamente uma tarefa de regressão. Em aprendizado de máquina, a regressão refere-se a problemas onde a saída é uma variável contínua, ao contrário da classificação, onde a saída é uma categoria discreta. No nosso caso, a saída do modelo transformer são as pontuações contínuas para cada parâmetro $\alpha, \rho$, e $\nu$ usados como entrada do algoritm quasi-Newton de otimização não-linear Broyden-Fletcher-Goldfarb-Shanno (BFGS) \citep{Broyden1970, Fletcher1970, Goldfarb1970, Shanno1970}, tendo como alvo os valores \textbf{P, Q} e \textbf{R} que minimizem possíveis oportunidades de arbitragem de contratos com maturidades e \textit{strikes} interpolados ou extrapolados.
+In summary, the task of tuning the SABR model parameters is a supervised regression task. In machine learning, regression refers to problems where the output is a continuous variable, as opposed to classification, where the output is a discrete category. In our case, the output of the transformer model are the continuous SS scores for each parameter \(\alpha\), \(\rho\), and \(\nu\). Then, the top 80\% candidate points are passed as inputs to the BFGS algorithm, targeting the values \textbf{P, Q}, and \textbf{R} that minimize possible arbitrage opportunities of contracts with interpolated or extrapolated maturities and strikes.
 
 \subsection{Detalhes da Implementação}
-
 \subsubsection{Classe do Modelo SABR}
 
 A classe `SABRModel` implementa o modelo SABR, fornecendo métodos para calcular preços a termo, volatilidades implícitas e ajustar os parâmetros do modelo. Os métodos principais incluem:
@@ -69,88 +68,13 @@ A classe \texttt{SelfAttention} implementa o mecanismo de atenção própria, qu
 	\textit{Attention}(Q, K, V) = \textit{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
 \end{equation}
 
-A implementação inclui:
-
-\begin{verbatim}
-class SelfAttention(nn.Module):
-	def __init__(self, in_features, heads):
-		
-		self.head_dim = in_features // heads
-		self.in_features = in_features
-		self.heads = heads
-		
-		self.W_v = nn.Linear(self.head_dim, self.head_dim, bias=False)
-		self.W_k = nn.Linear(self.head_dim, self.head_dim, bias=False)
-		self.W_q = nn.Linear(self.head_dim, self.head_dim, bias=False)
-		
-		self.fc_out = nn.Linear(in_features, in_features)
-		
-	def forward(self, value, key, query, mask=None):
-		N = query.shape[0]
-		value_len, key_len, query_len = value.shape[1], key.shape[1], query.shape[1]
-		
-		value = value.reshape(N, value_len, self.heads, self.head_dim)
-		key = key.reshape(N, key_len, self.heads, self.head_dim)
-		query = query.reshape(N, query_len, self.heads, self.head_dim)
-		
-		values = self.W_v(value)
-		keys = self.W_k(key)
-		queries = self.W_q(query)
-		
-		energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])
-		if mask is not None:
-		energy = energy.masked_fill(mask == 0, float("-1e20"))
-		
-		attention = torch.softmax(energy / (self.head_dim ** (1 / 2)), dim=3)
-		out = torch.einsum("nhql,nlhd->nqhd", [attention, values]).reshape(N, query_len, self.in_features)
-		
-		out = self.fc_out(out)
-		return out
-\end{verbatim}
-
 \subsubsection{Bloco do Transformer}
 
 A classe \texttt{TransformerBlock} implementa um bloco do transformer, composto por um mecanismo de atenção própria, normalização em camadas (LayerNorm) e uma rede feed-forward. Este bloco é a unidade básica que será repetida várias vezes no encoder:
 
-\begin{verbatim}
-class TransformerBlock(nn.Module):
-	def __init__(self, in_features, heads, forward_expansion):
-		self.attention = SelfAttention(in_features, heads)
-		self.norm1 = nn.LayerNorm(in_features)
-		self.norm2 = nn.LayerNorm(in_features)
-		
-		self.feed_forward = nn.Sequential(
-			nn.Linear(in_features, forward_expansion * in_features),
-			nn.ReLU(),
-			nn.Linear(forward_expansion * in_features, in_features)
-		)
-		
-	def forward(self, x, mask=None):
-		attention = self.attention(x, x, x, mask)
-		x = self.norm1(attention + x)
-		forward = self.feed_forward(x)
-		out = self.norm2(forward + x)
-		return out
-\end{verbatim}
 
 \subsubsection{Encoder do Transformer}
 
 A classe \texttt{TransformerEncoder} implementa o encoder do transformer, composto por vários blocos do transformer. Este encoder processa a sequência de entrada, aplicando múltiplas camadas de atenção própria e redes feed-forward:
-
-\begin{verbatim}
-class TransformerEncoder(nn.Module):
-	def __init__(self, in_features, heads, num_layers, forward_expansion, dropout, out_features):
-		self.layers = nn.ModuleList([
-			TransformerBlock(in_features, heads, forward_expansion) for _ in range(num_layers)
-		])
-		
-		self.dropout = nn.Dropout(dropout)
-		self.fc_out = nn.Linear(in_features, out_features)
-		
-	def forward(self, x, mask=None):
-		for layer in self.layers:
-			x = layer(x, mask)
-		return self.fc_out(x)
-\end{verbatim}
 
 

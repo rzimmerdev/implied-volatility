@@ -1,4 +1,4 @@
-\section{Metodologia e Resultados}
+\section{Metodologia}
 
 \subsection{Coleta de Dados}
 
@@ -34,7 +34,7 @@ O pré-processamento dos dados encorreu em várias etapas essenciais, predominan
 
 A variável target são os scores gerados utilizando-se todos os pontos candidatos para o dia atual, e a função de erro do modelo utiliza uma porcentagem \textbf{p} de pontos e é treinado para minimizar a função de erro quadrática das pontuações.
 
-\subsection{Métricas de Erro e Comparação das Superfícies}
+\subsection{Resultados e Comparação das Superfícies}
 
 Utilizamos como baseline uma interpolação linear dos pontos observados diariamente, e comparamos com a performance do modelo em relação à pontos internos à uma malha (ou \textit{grid} em inglês) gerada para pontos dentro do intervalo diário, tanto para valores de maturidade como de \textit{strike}.
 
@@ -50,14 +50,14 @@ O nosso modelo transformer foi treinado em cima do conjunto de dados, de aproxim
 \begin{figure}
 	\begin{center}
 		\includegraphics[width=8cm]{resources/pred_surface.png}
-		\caption{Superfície gerada utilizando um modelo SABR com parâmetros otimizados manualmente. Note que a não-remoção de \textit{outliers} gerou um pico na superfície}
+		\caption{Superfície gerada utilizando um modelo SABR com parâmetros otimizados manualmente. Note que a não-seleção manual de contratos candidatos gerou um pico na superfície}
 	\end{center}
 \end{figure}
 
 \begin{figure}
 	\begin{center}
 		\includegraphics[width=16cm]{resources/sst.png}
-		\caption{Comparação da superfície real com a gerada após treinamento do Transformer. Na esquerda, a superfície do modelo SST, na direita, a superfície interpolada linearmente}
+		\caption{Comparação da superfície gerada com a arquitetura proposta e superfície baseline. Na esquerda, a superfície do modelo SST, na direita, a superfície interpolada linearmente}
 	\end{center}
 \end{figure}
 	

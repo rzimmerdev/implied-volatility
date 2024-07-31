@@ -1,7 +1,8 @@
 import warnings
+from typing import Tuple
 
 import numpy as np
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, OptimizeWarning
 
 
 class SABR:
@@ -76,40 +77,39 @@ class SABR:
         return cls._calibrate_alpha(beta, rho, volvol, ivol, F, K, t)
 
     @classmethod
-    def fit_sabr(cls, ivol, S, K, t, rf, div, beta=None, p0=None):
-        def func(k, rho, volvol):
+    def fit_sabr(cls, ivol, S, K, t, rf, div, beta=None, p0=None, eps=1e-6) -> tuple:  # alpha, beta, rho, volvol
+        def y_hat(k, rho, volvol):
             alpha = cls.calibrate_alpha(beta, rho, volvol, ivol, S, k, t, rf, div)
             return cls.ivol(alpha, beta, rho, volvol, S, k, t, rf, div)
 
-        x = K
-        y = ivol
-
-        p0 = p0 if p0 is not None else (0.1, 0.1)
+        def get_mutable(x, y, p0, bounds) -> Tuple[float, float] or None:
+            with warnings.catch_warnings():
+                warnings.filterwarnings('error')
+                try:
+                    res = curve_fit(y_hat, x, y, p0, bounds=bounds, ftol=eps, xtol=eps, gtol=eps)
+                    err = np.sum((y - y_hat(x, *res[0])) ** 2)
+                except OptimizeWarning:
+                    return (None, None), np.inf
+                return res[0], err
 
         if beta is None:
             betas = np.linspace(0.1, 0.9, 9)
             prev = np.inf
-            best = None
+            best = 0.5
+
             for b in betas:
                 beta = b
-                try:
-                    res = curve_fit(func, x, y, p0)
-                except RuntimeError:
-                    continue
-                except TypeError:
-                    continue
-                err = np.sum((y - func(x, *res[0])) ** 2)
+                _, err = get_mutable(K, ivol, p0, ((-1, 0), (1, np.inf)))
                 if err < prev:
                     prev = err
                     best = b
+
             beta = best
 
-        bounds = ((-1, 0), (1, np.inf))
-        with warnings.catch_warnings():
-            warnings.filterwarnings('error')
-            res = curve_fit(func, x, y, p0, bounds=bounds)
+        (rho, volvol), _ = get_mutable(K, ivol, p0, ((-1, 0), (1, np.inf)))
+        if rho is None:
+            return None, None, None, None
 
-        rho, volvol = res[0]
         alpha = cls.calibrate_alpha(beta, rho, volvol, ivol, S, K, t, rf, div)
 
         return alpha, beta, rho, volvol
