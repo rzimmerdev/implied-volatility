@@ -96,6 +96,16 @@ class Dataviewer:
         return ax
 
     @classmethod
+    def plot(cls, K, T, iv, ax=None):
+        df = pd.DataFrame({
+            "strike": K,
+            "maturity": T,
+            "iv": iv
+        })
+
+        cls.plot_df(df, ax)
+
+    @classmethod
     def plot_ravel(cls, K, T, iv, ax=None):
         strikes_grid, maturities_grid = np.meshgrid(K, T, indexing='ij')
         df = pd.DataFrame({
@@ -111,6 +121,6 @@ class Dataviewer:
         plt.show()
 
     @classmethod
-    def create_grid(cls, rows, columns):
-        fig, ax = plt.subplots(rows, columns, subplot_kw={'projection': '3d'})
+    def create_grid(cls, rows, columns, fig_size=(30, 20)):
+        fig, ax = plt.subplots(rows, columns, subplot_kw={'projection': '3d'}, figsize=fig_size)
         return fig, ax

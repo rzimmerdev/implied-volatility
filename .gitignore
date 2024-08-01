@@ -8,9 +8,10 @@
 *.gz
 *.aux
 
-*.csv
 dataset/*.csv
-weights/*.pth
+
+*.csv
+weights
 lightning_logs/
 __pycache__/
 

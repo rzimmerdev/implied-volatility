@@ -1,55 +1,58 @@
 import argparse
 
 import numpy as np
+import pandas as pd
 
-from src.datasets.dataset_scores import SSVDataset
+from src.datasets.dataset_scores import ScoresDataset
 from src.datasets.dataset_vol import VolatilityDataset, Dataviewer
 from src.models.sst import MultiSST
-from src.sabr import ParametricSABR
+from src.sabr import SABR
 
 
-def preprocess():
-    volatility_dataset = VolatilityDataset("dataset").load("option_SPY_dataset_combined.csv")
-    return SSVDataset("dataset").load(volatility_dataset), volatility_dataset
+def results(model: MultiSST, score_dataset: ScoresDataset):
+    # Save losses and metrics
+    for name, sst in zip(("alpha", "rho", "volvol"), (model.z_alpha, model.z_rho, model.z_volvol)):
+        pd.DataFrame(sst.losses).to_csv(f"results/{name}_losses.csv", index=False)
 
+    value_datasets = {key: score_dataset.get_dataset(key) for key in ["alpha", "rho", "volvol"]}
 
-def test(checkpoint, pos):
     viewer = Dataviewer()
-    ssv_dataset, volatility_dataset = preprocess()
-    model = MultiSST(4, 4, 32, 32, forward_expansion=256)
 
-    n = 1
-    fig, axs = viewer.create_grid(2, n)
+    S, K, T, rf, div, ivol = score_dataset.volatility_dataset.get(0)
+    t = T[len(T) // 2]
+    _, beta, _, _ = SABR.fit_sabr(ivol[T == t], S, K[T == t], t, rf, div)
 
-    def sample_test(idx):
-        sample = ssv_dataset.sample(pos + idx)
+    K = np.linspace(K.min(), K.max(), 20)
+    T = np.linspace(T.min(), T.max(), 20)
 
-        p, q, r = model.fit_params(sample, p=0.7)
-        # standardize r
-        p = (p - p.mean()) / p.std()
-        print(f"{pos+idx} - p: {p}, q: {q}, r: {r}")
+    fig, ax = viewer.create_grid(2, 10)
 
-        sabr = ParametricSABR(p, q, r)
+    for day in range(1, 11):
+        S, K_daily, T_daily, rf, div, ivol_daily = score_dataset.volatility_dataset.get(day)
 
-        _, S, K, T, rf, div = volatility_dataset.sample(pos + idx)
-        true_surface = volatility_dataset.get((-np.inf, np.inf), (-np.inf, np.inf), volatility_dataset.dates[pos + idx])
-        viewer.plot(true_surface[['strike', 'maturity', 'iv']], axs[0, idx] if n > 1 else axs[0])
+        rows = {key: dataset[day] for key, dataset in value_datasets.items()}
+        parametric_sabr, optimal_values = model.get_optimal_parameters(rows, p=0.6)
 
-        K = np.linspace(K.min(), K.max(), 50)
-        T = np.linspace(T.min(), T.max(), 50)
-        pred_ivol = sabr.smooth_surface(S, K, T, rf, div, beta=0.5)
+        ivol_hat = parametric_sabr.smooth_surface(S, K, T, rf, div, beta=beta)
 
-        viewer.plot_ravel(K, T, pred_ivol, axs[1, idx] if n > 1 else axs[1])
-
-    for i in range(n):
-        sample_test(i)
+        viewer.plot_ravel(K, T, ivol_hat, ax[0, day - 1])
+        viewer.plot(K_daily, T_daily, ivol_daily, ax[1, day - 1])
 
     viewer.show()
 
 
+def test():
+    scores_dataset = ScoresDataset(VolatilityDataset("dataset"))
+    model = MultiSST(4, 4, 8, 8, forward_expansion=256)
+
+    path = "weights"
+    model.load_checkpoint(path)
+
+    results(model, scores_dataset)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--checkpoint', type=str, help='Path to save/load models checkpoint', default="weights")
 
     args = parser.parse_args()
-    test(args.checkpoint, np.random.randint(0, 68 - 5))
+    test()

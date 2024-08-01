@@ -1,63 +1,62 @@
-\section{Metodologia}
+\section{Methodology and Results}
 
-\subsection{Coleta de Dados}
+\subsection{Data Collection and Pre-Processing}
 
-Os dados utilizados neste trabalho foram obtidos de dados históricos de opções sobre o ativo $SPY$, da bolsa estadunidense, de 2021 à 2022, disponível no \href{https://www.kaggle.com/datasets/shawlu/option-spy-dataset-combinedcsv}{Kaggle}. Este conjunto de dados contém diversas colunas sobre opções negociadas, indexadas pela data, incluindo preços de exercício, preços futuros, maturidades, volatilidades implícitas, entre outros \citep{}. O arquivo pode ser e foi baixado e armazenado localmente em um diretório específico para processamento.
+The data used in this work were obtained from historical options data on the $SPY$ asset from the US stock exchange, from 2021 to 2022, available on \href{https://www.kaggle.com/datasets/shawlu/option-spy-dataset-combinedcsv}{Kaggle}. This dataset contains various columns about traded options, indexed by date, including strike prices, future prices, maturities, implied volatilities, among others \citep{}. The file can be and was downloaded and stored locally in a specific directory for processing.
 
-\subsection{Descrição do Conjunto de Dados}
+\subsection{Dataset Description}
 
-O conjunto de dados contém as seguintes colunas relevantes para nosso estudo, além de diversas outras:
+The dataset contains the following columns relevant to our study, in addition to several others:
 \begin{itemize}
-	\item \textbf{underlying}: Preço do ativo subjacente.
-	\item \textbf{strike}: Preço de exercício da opção.
-	\item \textbf{daysToExpiration}: Dias restantes até a expiração da opção.
-	\item \textbf{iv}: Volatilidade implícita.
-	\item \textbf{dt}: Data do registro.
+	\item \textbf{underlying}: Price of the underlying asset.
+	\item \textbf{strike}: Option's strike price.
+	\item \textbf{daysToExpiration}: Days remaining until the option's expiration.
+	\item \textbf{iv}: Implied volatility.
+	\item \textbf{dt}: Record date.
 \end{itemize}
 
-Além disso, adicionamos duas colunas calculadas:
+Additionally, we added two calculated columns:
 \begin{itemize}
-	\item \textbf{maturity}: Calculada dividindo \textit{daysToExpiration} por 360 (dias úteis no ano) para normalizar o tempo de maturidade.
-	\item \textbf{r}: Taxa livre de risco obtida do Federal Reserve Economic Data (FRED) para o período correspondente.
-	\item \textbf{d}: Taxa de dividendos paga trimestralmente pelo SPY.
+	\item \textbf{maturity}: Calculated by dividing \textit{daysToExpiration} by 360 (working days in a year) to normalize the maturity time.
+	\item \textbf{r}: Risk-free rate obtained from the Federal Reserve Economic Data (FRED) for the corresponding period.
+	\item \textbf{d}: Dividend yield paid quarterly by the SPY.
 \end{itemize}
 
-\subsection{Pré-processamento dos Dados}
+\subsection{Data Preprocessing}
 
-O pré-processamento dos dados encorreu em várias etapas essenciais, predominantemente realizadas para permitir o uso dos dados diretamente na arquitetura do transformer e subsequente uso para gerar a superfície para os dados históricos. O transformer tem como entrada 4 dimensões, sendo elas: 
+The data preprocessing involved several essential steps, predominantly performed to allow the use of the data directly in the transformer architecture and subsequent use to generate the surface for historical data. The transformer takes four dimensions as input, which are:
 \begin{enumerate}
-\item O tempo até a maturidade; 
-\item O valor do parâmetro ($\alpha, \rho$, ou $\nu$); 
-\item $\mathbf{1}$ se o parâmetro foi calculado para o dia atual, $\mathbf{0}$ se foi calculado no dia anterior por não existir no dia atual; 
-\item Parâmetros calculados utilizando as pontuações do dia anterior.
+	\item Time to maturity;
+	\item The value of the parameter ($\alpha, \rho$, or $\nu$);
+	\item $\mathbf{1}$ if the parameter was calculated for the current day, $\mathbf{0}$ if it was calculated on the previous day because it does not exist on the current day;
+	\item Parameters calculated using the previous day's scores.
 \end{enumerate}
 
-A variável target são os scores gerados utilizando-se todos os pontos candidatos para o dia atual, e a função de erro do modelo utiliza uma porcentagem \textbf{p} de pontos e é treinado para minimizar a função de erro quadrática das pontuações.
+The target variable is the scores generated using all candidate points for the current day, and the model's error function uses a percentage \textbf{p} of points and is trained to minimize the quadratic error function of the scores.
 
-\subsection{Resultados e Comparação das Superfícies}
+\subsection{Results and Surface Comparison}
 
-Utilizamos como baseline uma interpolação linear dos pontos observados diariamente, e comparamos com a performance do modelo em relação à pontos internos à uma malha (ou \textit{grid} em inglês) gerada para pontos dentro do intervalo diário, tanto para valores de maturidade como de \textit{strike}.
+We used a linear interpolation of the daily observed points as the baseline and compared it with the model's performance concerning internal points to a grid generated for points within the daily range, both for maturity values and strike.
 
-O nosso modelo transformer foi treinado em cima do conjunto de dados, de aproximadamente 70 observações, cada uma com uma sequência de em média 700 pontos. Os modelos foram treinados por aproximadamente 700 épocas.
+Our transformer model was trained on the dataset, with approximately 70 observations, each with a sequence of an average of 700 points. The models were trained for approximately 700 epochs.
 
 \begin{figure}
 	\begin{center}
 		\includegraphics[width=8cm]{resources/losses.png}
-		\caption{Função de perda histórica, de uma sessão de treinamento do Transformer}
+		\caption{Historical loss function from a Transformer training session}
 	\end{center}
 \end{figure}
-	
+
 \begin{figure}
 	\begin{center}
 		\includegraphics[width=8cm]{resources/pred_surface.png}
-		\caption{Superfície gerada utilizando um modelo SABR com parâmetros otimizados manualmente. Note que a não-seleção manual de contratos candidatos gerou um pico na superfície}
+		\caption{Surface generated using a manually optimized SABR model. Note that the non-manual selection of candidate contracts generated a peak in the surface}
 	\end{center}
 \end{figure}
 
 \begin{figure}
 	\begin{center}
 		\includegraphics[width=16cm]{resources/sst.png}
-		\caption{Comparação da superfície gerada com a arquitetura proposta e superfície baseline. Na esquerda, a superfície do modelo SST, na direita, a superfície interpolada linearmente}
+		\caption{Comparison of the surface generated with the proposed architecture and the baseline surface. On the left, the SST model surface, on the right, the linearly interpolated surface}
 	\end{center}
 \end{figure}
-	

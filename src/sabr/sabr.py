@@ -78,9 +78,11 @@ class SABR:
 
     @classmethod
     def fit_sabr(cls, ivol, S, K, t, rf, div, beta=None, p0=None, eps=1e-6) -> tuple:  # alpha, beta, rho, volvol
-        def y_hat(k, rho, volvol):
-            alpha = cls.calibrate_alpha(beta, rho, volvol, ivol, S, k, t, rf, div)
-            return cls.ivol(alpha, beta, rho, volvol, S, k, t, rf, div)
+        p0 = p0 or (0.1, 0.1)
+
+        def y_hat(x, rho, volvol):
+            alpha = cls.calibrate_alpha(beta, rho, volvol, ivol, S, x, t, rf, div)
+            return cls.ivol(alpha, beta, rho, volvol, S, x, t, rf, div)
 
         def get_mutable(x, y, p0, bounds) -> Tuple[float, float] or None:
             with warnings.catch_warnings():

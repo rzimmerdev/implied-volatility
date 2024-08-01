@@ -38,43 +38,46 @@ And finally, the daily parametric SABR model is given by the set of encoded para
 	f_{\nu}(t, \textbf{R}) = r_0 + r_1 t^{r_2} e^{r_3 t}
 \end{equation}
 
+The task of tuning the SABR model parameters is a supervised regression task. In machine learning, regression refers to problems where the output is a continuous variable, as opposed to classification, where the output is a discrete category. In our case, the output of the transformer model are the continuous SS scores for each parameter \(\alpha\), \(\rho\), and \(\nu\). Then, the top $p=80\%$ candidate points are passed as inputs to the BFGS algorithm, targeting the values \textbf{P, Q}, and \textbf{R} that minimize possible arbitrage opportunities of contracts with interpolated or extrapolated maturities and strikes.
+
 \subsection{Proposed Encoder Architecture and Error Functions}
 
-Transformers are a type of neural network architecture known for their ability to capture complex dependencies in sequential non-fixed length data. Within our proposed architecture, a transformer encoder is used to obtain the scores for each candidate point from the daily observed input. Then, for each training epoch it estimates a loss score for the mean squared error between the encoder's output and a z-score obtained by Monte Carlo estimation from a candidate set of $k=1e3$ generated subsets from the original set. This is done to calculate the estimated z-score of the point,. Therefore, if the model converges, the network parameters are optimized to estimate daily SS scores for each listed options contract.
+Transformers are a specific type of neural network architecture capable of capturing complex dependencies in sequential non-fixed length data. Within our proposed architecture, we use a transformer encoder to approximate the \textit{SS} scores for each candidate point $\mathcal{S}_{i}^{t} \in \mathcal{S}^{t}$ from the daily observed input. Then, for each training epoch it estimates a loss score for the mean squared error between the encoder's output and a z-score obtained by Monte Carlo estimation from a candidate set $\mathcal{S}^{t}$ of $k=1e2$ generated subsets from the original set. This is done to calculate the estimated z-score of the point, which is finally used as the target value for our model. Consequentially, if after training the model has converged to a mean low error for the estimated scores, the network parameters are deemed optimized to substitute the Monte Carlo process in estimating daily SS scores for the currently listed option contracts \citep{Kim2021}.
+
+\begin{lstlisting}
+SS_Score(maturities, candidate_set, p, k, sigma)
+	optimal_parameter = OptimizeForParameter(candidate_set)
+	
+	for candidate_point in candidate_set
+		// Generate k subsets of size Length(candidate_set) * p
+		// that contain the candidate_point
+		subset <- GenerateSubset(candidate_set, candidate_point, p, k)
+		suboptimal_parameter <- OptimizeForParameter(subset)
+		
+		// For each maturity, calculate the parameter's value using
+		// one of the equations at Eq. 3, 4, 5.
+		error <- Mean(AbsoluteDifference(
+			f(maturities, suboptimal_parameter) - candidate_set
+			))
+		
+		ss_score <- Sqrt(e^(-Error / Sigma))
+		Append ss_score to subset_scores
+	
+	z_score <- (ss_score - Mean(ss_score)) / StdDev(ss_score)
+	
+	return z_score	
+\end{lstlisting}
+
+\subsection{Details on the Choosen Encoder Architecture}
 
 Unlike recurrent neural networks (RNNs) and convolutional neural networks (CNNs), transformers do not rely on a sequential structure to process data. Instead, they use an attention mechanism, which allows each input element (or token) to consider the relationship with all other elements in the same sequence simultaneously. This is achieved through a series of layers called encoders (for encoding the input data) and decoders (for generating the output).
 
-Transformers are classified as machine learning algorithms due to their ability to learn patterns and relationships from data. They are trained using supervised techniques. In the context of the specific architecture we implemented, we use only the encoder layers, with 4 input dimensions, 2 attention heads per layer, and 4 layers in total. The model training stage is carried out on historical option data listed for the \textbf{S\&P 500} from January to December of 2021. The training epochs adjust the layer weights with an error function that minimizes the difference between its predictions and the Monte Carlo expected z-score score values.
-
-In summary, the task of tuning the SABR model parameters is a supervised regression task. In machine learning, regression refers to problems where the output is a continuous variable, as opposed to classification, where the output is a discrete category. In our case, the output of the transformer model are the continuous SS scores for each parameter \(\alpha\), \(\rho\), and \(\nu\). Then, the top 80\% candidate points are passed as inputs to the BFGS algorithm, targeting the values \textbf{P, Q}, and \textbf{R} that minimize possible arbitrage opportunities of contracts with interpolated or extrapolated maturities and strikes.
-
-\subsection{Detalhes da Implementação}
-\subsubsection{Classe do Modelo SABR}
-
-A classe `SABRModel` implementa o modelo SABR, fornecendo métodos para calcular preços a termo, volatilidades implícitas e ajustar os parâmetros do modelo. Os métodos principais incluem:
-\begin{itemize}
-	\item `star()`: Otimiza os valores $P, Q$ e $R$ que minimizem o erro da superfície gerada com a observada dado valores fixos para tempos de vencimento, preço à vista e futuro, taxa livre de risco e rendimento de dividendos e $\alpha, \rho$, e $\nu$ variáveis.
-	\item `ivol()`: Calcula a volatilidade implícita para parâmetros de modelo e condições de mercado dadas.
-\end{itemize}
-
-\subsection{Arquitetura do Transformer}
-
-A arquitetura do transformer é conhecida por sua capacidade de capturar dependências complexas em dados sequenciais, utilizando um mecanismo de atenção para ponderar a importância de diferentes partes da sequência. A seguir, descrevemos a implementação de um modelo transformer em PyTorch, destacando os componentes principais: a atenção própria (Self-Attention), o bloco do transformer (Transformer Block) e o encoder do transformer (Transformer Encoder).
-
-\subsubsection{Atenção Própria}
-
-A classe \texttt{SelfAttention} implementa o mecanismo de atenção própria, que aceita dados contínuos e calcula a atenção para diferentes cabeças. A atenção é calculada através das matrizes de valor (\texttt{value}), chave (\texttt{key}) e consulta (\texttt{query}), resultando em uma saída ponderada pela importância de cada parte da sequência. 
+The self-attention mechanism, which accepts continuous data and calculates attention for different head is computed through value (\texttt{value}), key (\texttt{key}), and query (\texttt{query}) matrices, resulting in an output weighted by the importance of each part of the sequence \citep{Wen2023, Vaswani2023}
 \begin{equation}
 	\textit{Attention}(Q, K, V) = \textit{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
 \end{equation}
 
-\subsubsection{Bloco do Transformer}
+Transformers are classified as machine learning algorithms due to their ability to learn patterns and relationships from data. They are trained using supervised techniques. In the context of the specific architecture we implemented, we use only the encoder block, with 4 input dimensions, 8 attention heads per block, and 8 blocks in total. The hidden values are passed to 8 hidden fully-connected (FC) layers, and a final implicit fixed-point iteration layer is used to obtain the scores as \textit{SS} z-normalized values. The model training stage is carried out on historical option data listed for the \textbf{S\&P 500} from January to December of 2021. The training epochs adjust the layer weights with an error function that minimizes the difference between its predictions and the Monte Carlo expected z-score values.
 
-A classe \texttt{TransformerBlock} implementa um bloco do transformer, composto por um mecanismo de atenção própria, normalização em camadas (LayerNorm) e uma rede feed-forward. Este bloco é a unidade básica que será repetida várias vezes no encoder:
-
-
-\subsubsection{Encoder do Transformer}
-
-A classe \texttt{TransformerEncoder} implementa o encoder do transformer, composto por vários blocos do transformer. Este encoder processa a sequência de entrada, aplicando múltiplas camadas de atenção própria e redes feed-forward:
-
+\subsubsection{Details on the Implicit Layer}
 

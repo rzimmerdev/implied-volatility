@@ -16,6 +16,8 @@ def train(checkpoint, batch_size=1, num_workers=8, epochs=100, lr=1e-5):
         model.train(scores_dataset, batch_size, num_workers, epochs)
         model.save_checkpoint(path)
 
+        # save train losses to results/{name}_losses.csv [alpha_loss.csv, rho_loss.csv, volvol_loss.csv]
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -19,7 +19,7 @@ class SST(nn.Module):
         self.transformer = TransformerEncoder(n, *args, **kwargs)
 
     @classmethod
-    def best_candidates(cls, values, scores, p=0.4):
+    def best_candidates(cls, values, scores, p=0.8):
         # use values to return only the top p% of the inputs
         n = len(values)
         top = int((1 - p) * n)
@@ -54,27 +54,22 @@ class LitSST(lightning.LightningModule):
         output = self(x)
 
         loss = self.criterion(output, y)
-        r_squared = 1 - loss / torch.var(y)
 
         if loss is None or np.isnan(loss.item()) or np.isinf(loss.item()):
             raise ValueError(f"Loss is None for batch {batch_idx}")
 
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('r_squared', r_squared, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         self.losses.append(loss.item())
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x = torch.clamp(batch[0], -1e9, 1e9)
-        y = batch[1]
+        x, y = batch
         output = self(x)
 
         loss = self.criterion(output, y)
-        r_squared = 1 - loss / torch.var(y)
 
         self.log('val_loss', loss, on_epoch=True, prog_bar=True, logger=True)
-        self.log('r_squared', r_squared, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
@@ -156,10 +151,10 @@ class MultiSST:
 
         callback = EarlyStopping(
             monitor='train_loss',
-            patience=3,
+            patience=5,
             verbose=True,
             mode='min',
-            min_delta=0.01
+            min_delta=1e-5
         )
 
         print("Training alpha...")
@@ -176,6 +171,7 @@ class MultiSST:
 
         return self.z_alpha, self.z_rho, self.z_volvol
 
+    @property
     def funcs(self):
         return {
             "alpha": self.z_alpha,
@@ -183,17 +179,14 @@ class MultiSST:
             "volvol": self.z_volvol
         }
 
-    def optim_candidates(self, rows, score_func, p=0.8):
-        candidates = rows.iloc[:, 1:3].values
+    def get_optimal_parameters(self, rows: dict, p=0.8):
+        optimal = {}
 
-        inputs = torch.tensor(rows.iloc[:, 1:5].values[np.newaxis, :, :], dtype=torch.float32)
-        scores = score_func(inputs)[0]  # get only first batch
+        for key in ["alpha", "rho", "volvol"]:
+            candidates = rows[key][0][:, 0:2]
+            scores = self.funcs[key](torch.tensor(rows[key][0][np.newaxis, ...], dtype=torch.float32))
+            optimal[key] = SST.best_candidates(candidates, scores[0], p)
 
-        return SST.best_candidates(candidates, scores, p)
+        p, q, r = ParametricSABR.fit_params(optimal)
 
-    def fit_params(self, inputs, p=0.8):
-        score_funcs = self.funcs()
-
-        return ParametricSABR.fit_params({
-            key: self.optim_candidates(inputs[key], score_funcs[key], p) for key in ("alpha", "rho", "volvol")
-        })
+        return ParametricSABR(p, q, r), optimal
