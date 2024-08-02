@@ -23,7 +23,10 @@ The \textit{SABR} model is a stochastic volatility model used to obtain smooth s
 Usually, the choice of subsets and the scoring process is done manually by analysts, as mentioned earlier, and the next section will focus on the details covering the \textit{SABR} model and how we use a implicit neural layer with attention, specifically an \textbf{encoder} architecture for assigning scores automatically given the daily points candidate set. This approach is an implicit fixed-point solver variation for the scoring model proposed in \citep{Kim2021}
 
 \subsection{Deep Implicit Layers}
-Differently from fully connected layers in which the transformation from input to output is defined explicitly, implicit layers are instead defined by conditions that the output must satisfy. For explicit layers, a given output $z$ is computed directly from the input $x$ using a function $f$, such that $z = f(x)$. In contrast, an implicit layer is the function $g$ so that it depends on both the input $x$ and the expected output $z$, where $z$ is a solution for the equation $g(x, z) = 0$.
+Differently from fully connected layers in which the transformation from input to output is defined explicitly, implicit layers are instead defined by conditions that the output must satisfy. For explicit layers, a given output $z$ is computed directly from the input $x$ using a function $f$, such that $z = f(x)$. In contrast, an implicit layer is the function $g$ so that it depends on both the input $x$ and the expected output $z$, where $z$ is a solution for the equation and the solution to the layer, namely the weights $\mathbf{W}$ are such that
+\begin{equation}\label{fixed_point}
+	g_{\mathbf{W}}(x, z) = 0.
+\end{equation}
 
 Formulating the problem as a fixed point equation can be used for a multitude of problems, including finding fixed points in recurrent networks, solutions to differential equations leading to Neural ODEs, and several optimization problems \citep{Chen2019}. The implicit formulation offers several practical advantages, primarily the separation of the solution method from the layer definition which can be useful in maintaining interpretability of the resulting model\citep{Kawaguchi2021}.
 

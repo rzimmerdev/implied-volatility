@@ -54,10 +54,6 @@ class TransformerBlock(nn.Module):
 
         self.feed_forward = nn.Sequential(
             nn.Linear(in_features, forward_expansion * in_features),
-            nn.Sequential(*[
-                nn.ReLU(),
-                nn.Linear(forward_expansion * in_features, forward_expansion * in_features)
-            ] * (num_layers - 1)),
             nn.ReLU(),
             nn.Linear(forward_expansion * in_features, in_features)
         )
@@ -97,7 +93,7 @@ class TransformerEncoder(nn.Module):
         ])
         self.dropout = nn.Dropout(dropout)
         if out_features is not None:
-            self.fc_out = nn.Linear(in_features, out_features)
+            self.fc_out = nn.Linear(in_features, forward_expansion)
         else:
             self.fc_out = None
 

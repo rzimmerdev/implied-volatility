@@ -4,19 +4,112 @@ import lightning
 import numpy as np
 import torch
 from lightning.pytorch.callbacks import EarlyStopping
-from torch import nn
+from torch import nn, autograd
 from torch.utils.data import Dataset
 
 from .transformer import TransformerEncoder
 from ..datasets import ScoresDataset
 from ..sabr import ParametricSABR
 
+import torch
+
+
+def anderson(f, x0, m=5, lam=1e-4, max_iter=50, tol=1e-2, beta=1.0):
+    """ Anderson acceleration for fixed point iteration. """
+    bsz, seq_len, num_features = x0.shape
+    X = torch.zeros(bsz, m, seq_len * num_features, dtype=x0.dtype, device=x0.device)
+    F = torch.zeros(bsz, m, seq_len * num_features, dtype=x0.dtype, device=x0.device)
+    X[:, 0], F[:, 0] = x0.view(bsz, -1), f(x0).view(bsz, -1)
+    X[:, 1], F[:, 1] = F[:, 0], f(F[:, 0].view(bsz, seq_len, num_features)).view(bsz, -1)
+
+    H = torch.zeros(bsz, m + 1, m + 1, dtype=x0.dtype, device=x0.device)
+    H[:, 0, 1:] = H[:, 1:, 0] = 1
+    y = torch.zeros(bsz, m + 1, 1, dtype=x0.dtype, device=x0.device)
+    y[:, 0] = 1
+
+    res = []
+    k = 1
+    for k in range(2, max_iter):
+        n = min(k, m)
+        G = F[:, :n] - X[:, :n]
+        H[:, 1:n + 1, 1:n + 1] = torch.bmm(G, G.transpose(1, 2)) + lam * torch.eye(n, dtype=x0.dtype, device=x0.device)[
+            None]
+        alpha = torch.linalg.solve(H[:, :n + 1, :n + 1], y[:, :n + 1])[:, 1:n + 1, 0]  # (bsz x n)
+
+        X[:, k % m] = beta * (alpha[:, None] @ F[:, :n])[:, 0] + (1 - beta) * (alpha[:, None] @ X[:, :n])[:, 0]
+        F[:, k % m] = f(X[:, k % m].view(bsz, seq_len, num_features)).view(bsz, -1)
+        res.append((F[:, k % m] - X[:, k % m]).norm().item() / (1e-5 + F[:, k % m].norm().item()))
+        if res[-1] < tol:
+            break
+
+    return X[:, k % m].view(bsz, seq_len, num_features), res
+
+
+class DEQFixedPoint(nn.Module):
+    def __init__(self, in_features, solver=anderson, **kwargs):
+        super().__init__()
+        self.solver = solver
+        self.kwargs = kwargs
+        self.layer = nn.Linear(in_features, in_features)
+        self.norm = nn.LayerNorm(in_features)
+        self.relu = nn.ReLU()
+        self.x = None
+
+    def forward(self, x):
+        # compute forward pass and re-engage autograd tape
+        with torch.no_grad():
+            y = torch.zeros_like(x)
+            z, self.x = self.solver(lambda z: self.f(z, x), y, **self.kwargs)
+        z = self.f(z, x)
+
+        # set up Jacobian vector product (without additional forward calls)
+        z0 = z.clone().detach().requires_grad_()
+        f0 = self.f(z0, x)
+
+        def backward_hook(grad):
+            g, self.backward_res = self.solver(lambda y: autograd.grad(f0, z0, y, retain_graph=True)[0] + grad,
+                                               grad, **self.kwargs)
+            return g
+
+        z.register_hook(backward_hook)
+        return z
+
+    def f(self, x, y):
+        return self.norm(self.relu(self.layer(x) + y))
+
 
 class SST(nn.Module):
-    def __init__(self, n, *args, **kwargs):
+    def __init__(self,
+                 in_features,
+                 heads,
+                 num_blocks,
+                 num_layers,
+                 forward_expansion=4,
+                 fc_size=256,
+                 out_features=1,
+                 dropout=0.2):
         nn.Module.__init__(self)
-        self.n = n
-        self.transformer = TransformerEncoder(n, *args, **kwargs)
+        self.transformer = TransformerEncoder(in_features, heads, num_blocks, num_layers, forward_expansion, out_features, dropout)
+        self.fc_size = fc_size
+        self.feed_forward = nn.Sequential(
+            nn.Linear(forward_expansion, self.fc_size),
+            nn.ReLU(),
+            nn.Linear(self.fc_size, self.fc_size // 2),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.LayerNorm(self.fc_size // 2)
+        )
+
+        self.deq_forward = nn.Sequential(
+            DEQFixedPoint(self.fc_size // 2, tol=1e-2, max_iter=50, lam=1e-4, beta=1.0),
+            nn.Dropout(0.2),
+            nn.LayerNorm(self.fc_size // 2),
+            nn.Linear(self.fc_size // 2, self.fc_size // 4),
+            DEQFixedPoint(self.fc_size // 4, tol=1e-2, max_iter=50, lam=1e-4, beta=1.0),
+            nn.Dropout(0.2),
+            nn.LayerNorm(self.fc_size // 4),
+            nn.Linear(self.fc_size // 4, out_features),
+        )
 
     @classmethod
     def best_candidates(cls, values, scores, p=0.8):
@@ -28,7 +121,10 @@ class SST(nn.Module):
         return values[selected]
 
     def forward(self, x):
-        return self.transformer(x)
+        x = self.transformer(x)
+        x = self.feed_forward(x)
+        x = self.deq_forward(x)
+        return x
 
 
 class LitSST(lightning.LightningModule):
@@ -92,7 +188,8 @@ class MultiSST:
                  num_blocks,
                  num_layers,
                  forward_expansion=4,
-                 out_features=None,
+                 fc_size=256,
+                 out_features=1,
                  dropout=0.2,
                  checkpoint_path=None,
                  lr=1e-3):
@@ -110,7 +207,8 @@ class MultiSST:
             lr: float, learning rate for the optimizer
         """
         self.z_alpha, self.z_rho, self.z_volvol = [
-            LitSST(checkpoint_path, lr, in_features, heads, num_blocks, num_layers, forward_expansion, out_features,
+            LitSST(checkpoint_path, lr, in_features, heads, num_blocks, num_layers, forward_expansion, fc_size,
+                   out_features,
                    dropout)
             for _ in range(3)
         ]
@@ -140,7 +238,7 @@ class MultiSST:
         for name, model in zip(("alpha", "rho", "volvol"), (self.z_alpha, self.z_rho, self.z_volvol)):
             model.save_checkpoint(f"{path}/{name}.pth")
 
-    def train(self, dataset: ScoresDataset, batch_size=1, num_workers=8, epochs=100):
+    def train(self, dataset: ScoresDataset, num_workers=8, epochs=100):
         dataset_p = dataset.get_dataset("alpha")
         dataset_q = dataset.get_dataset("rho")
         dataset_r = dataset.get_dataset("volvol")
@@ -149,25 +247,18 @@ class MultiSST:
         dataloader_q = torch.utils.data.DataLoader(dataset_q, batch_size=1, num_workers=num_workers, shuffle=True)
         dataloader_r = torch.utils.data.DataLoader(dataset_r, batch_size=1, num_workers=num_workers, shuffle=True)
 
-        callback = EarlyStopping(
-            monitor='train_loss',
-            patience=5,
-            verbose=True,
-            mode='min',
-            min_delta=1e-5
-        )
+        for sst, dataloader in zip((self.z_alpha, self.z_rho, self.z_volvol),
+                                   (dataloader_p, dataloader_q, dataloader_r)):
+            callback = EarlyStopping(
+                monitor='train_loss',
+                patience=10,
+                verbose=True,
+                mode='min',
+                min_delta=0.5e-2
+            )
 
-        print("Training alpha...")
-        trainer = lightning.Trainer(max_epochs=epochs, callbacks=[callback])
-        trainer.fit(self.z_alpha, dataloader_p)
-
-        print("Training rho...")
-        trainer = lightning.Trainer(max_epochs=epochs, callbacks=[callback])
-        trainer.fit(self.z_rho, dataloader_q)
-
-        print("Training volvol...")
-        trainer = lightning.Trainer(max_epochs=epochs, callbacks=[callback])
-        trainer.fit(self.z_volvol, dataloader_r)
+            trainer = lightning.Trainer(max_epochs=epochs, callbacks=[callback])
+            trainer.fit(sst, dataloader)
 
         return self.z_alpha, self.z_rho, self.z_volvol
 
