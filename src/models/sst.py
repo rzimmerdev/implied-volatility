@@ -89,7 +89,8 @@ class SST(nn.Module):
                  out_features=1,
                  dropout=0.2):
         nn.Module.__init__(self)
-        self.transformer = TransformerEncoder(in_features, heads, num_blocks, num_layers, forward_expansion, out_features, dropout)
+        self.transformer = TransformerEncoder(in_features, heads, num_blocks, num_layers, forward_expansion,
+                                              out_features, dropout)
         self.fc_size = fc_size
         self.feed_forward = nn.Sequential(
             nn.Linear(forward_expansion, self.fc_size),
@@ -97,7 +98,8 @@ class SST(nn.Module):
             nn.Linear(self.fc_size, self.fc_size // 2),
             nn.ReLU(),
             nn.Dropout(0.2),
-            nn.LayerNorm(self.fc_size // 2)
+            nn.LayerNorm(self.fc_size // 2),
+            nn.Linear(self.fc_size // 2, out_features),
         )
 
         self.deq_forward = nn.Sequential(
@@ -123,7 +125,6 @@ class SST(nn.Module):
     def forward(self, x):
         x = self.transformer(x)
         x = self.feed_forward(x)
-        x = self.deq_forward(x)
         return x
 
 
@@ -257,7 +258,7 @@ class MultiSST:
                 min_delta=0.5e-2
             )
 
-            trainer = lightning.Trainer(max_epochs=epochs, callbacks=[callback])
+            trainer = lightning.Trainer(max_epochs=epochs, callbacks=[callback], accelerator="cpu")
             trainer.fit(sst, dataloader)
 
         return self.z_alpha, self.z_rho, self.z_volvol
@@ -265,8 +266,8 @@ class MultiSST:
     @property
     def funcs(self):
         return {
-            "alpha": self.z_alpha,
-            "rho": self.z_rho,
+            "alpha":  self.z_alpha,
+            "rho":    self.z_rho,
             "volvol": self.z_volvol
         }
 
