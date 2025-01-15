@@ -230,6 +230,9 @@ class ScoresDataset:
                 self.data = dataset
                 self.dates = self.data["day"].unique()
 
+                # backfill data "prev_value" column
+                self.data["prev_value"] = self.data["prev_value"].fillna(method="bfill")
+
             def __len__(self):
                 return len(self.dates)
 

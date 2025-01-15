@@ -1,0 +1,62 @@
+\documentclass{article}
+
+\usepackage{arxiv}
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{graphicx}
+\usepackage{natbib}
+\usepackage{doi}
+\usepackage[english]{babel}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{caption}
+
+\lstset{
+	basicstyle=\ttfamily,
+	keywordstyle=\color{blue},
+	commentstyle=\color{gray},
+	stringstyle=\color{red},
+	numbers=left,
+	numberstyle=\tiny\color{gray},
+	stepnumber=1,
+	numbersep=10pt,
+	frame=single,
+	breaklines=true,
+	breakatwhitespace=false,
+	tabsize=4
+}
+
+\renewcommand{\headeright}{}
+\renewcommand{\undertitle}{}
+\renewcommand{\shorttitle}{Deep Implicit Layers for Smooth Implied Volatility Surface Interpolation}
+
+\hypersetup{
+	pdftitle={Deep Implicit Layers for Smooth Implied Volatility Surface Interpolation},
+	pdfsubject={q-bio.NC, q-bio.QM},
+	pdfauthor={Zimmer, R.},
+	pdfkeywords={Neural Networks, Implied Volatility, Options, Quantitative Methods, Implicit Layers},
+}
+
+\begin{document}
+	\include{cover}
+
+	\include{content/introduction}
+	
+	\include{content/theory}
+	
+	\include{content/results}
+	
+	\include{content/conclusion}
+	
+	\bibliographystyle{unsrtnat}
+	\bibliography{bibliography}
+\end{document}
