@@ -1,5 +1,5 @@
 \title{Deep Implicit Layers for Smooth Implied Volatility Surface Interpolation*\\
-\thanks{Identify applicable funding agency here. If none, delete this.}
+\thanks{*This work was supported by the São Paulo State Research Support Foundation (FAPESP).}
 }
 
 \author{\IEEEauthorblockN{1\textsuperscript{st} Given Name Surname}
@@ -29,13 +29,12 @@ email address or ORCID}
     The parameter values for the models are trained on daily data points and used for generating smooth interpolated points in the surface.
     The motivation behind our approach is to reduce arbitrage opportunities when generating smooth interpolation and extrapolation of the surface, i.e.,
     making it infinitely differentiable at all points while still matching existing contracts.
-    The proposed architecture solves the problem of selecting the candidates $\alpha, \rho, \nu$
-    while minimizing statistical arbitrage opportunities for observed contracts within the respective generated surface.
+    The proposed architecture solves the problem of optimizing for the $\alpha, \rho, \nu$ parameters
+    while minimizing statistical arbitrage opportunities for observed contracts within the generated surface.
     Our methodology includes using historical observed values of listed options as well as the calculated implied volatility for these contracts.
     The innate ability of transformer architectures to process observations of sequences with non-fixed lengths, i.e.,
-    for contracts with varying expiration dates is used to choose candidate points that best replicate the daily surfaces.
-    Using our approach, the resulting surface curvature and volatility values are then compared to two baseline approaches:
-    linear interpolations and non-implicit transformer networks and show either a smoother fit to the observed data or a reduction in arbitrage opportunities, respectively.
+    for contracts with varying expiration dates is used to choose candidate points that best summarize the daily surfaces.
+    The generated surfaces are then compared to a baseline linear interpolation model.
 \end{abstract}
 
 \begin{IEEEkeywords}

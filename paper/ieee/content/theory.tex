@@ -1,40 +1,33 @@
 \section{Implementation of a Parametetric SABR Model and Implicit Neural Network Architectures}
+\label{sec:implementation}
 
 \subsection{Defining the SABR Model Equations}
-
+\label{subsec:sabr}
 The SABR model is a stochastic differential model, defined by the following equations in which the dynamics of the
 forward price and the corresponding volatility levels are used to calculate the implied volatility.
 \begin{itemize}
     \item \textbf{Alpha (\(\alpha\))}: This is the initial volatility level.
     \item \textbf{Beta (\(\beta\))}: The elasticity parameter between the volatility of the asset and its price.
-    \item \textbf{Rho (\(\rho\))}: Statistical correlation between the asset price and its volatility.
+    \item \textbf{Rho (\(\rho\))}: Statistical correlation between the asset price and its volatility, also called \textit{spot-volatility correlation}.
     \item \textbf{Volvol (\(\nu\))}: The volatility of the volatility process itself.
 \end{itemize}
 
 The implied volatility function of the SABR model is then given by:
 
 \begin{equation}
+    \label{eq:sabr}
     \sigma_{\textit{BS}}(f, K) =
     \alpha \frac{(fK)^{\frac{1 - \beta}{2}}}{1 + \left(\frac{(1 - \beta)^2 \rho^2}{24} + \frac{(1 - \beta)^2(2 - 3\rho^2)}{1920} \right) (fK)^{1 - \beta}}
 \end{equation}
 
-In the context of this paper, multiple SABR models are fitted daily, corresponding to each unique maturity value at the respective day.
-A continuous function is used to map the different maturities to the three model parameters (values for $\beta$ are fixed and remain unchanged).
-The three variables used to encode the maturity levels are the following:
+In the context of this paper, multiple SABR models are fitted daily, one for each unique maturity value at the respective day.
+Three continuous functions are then used to map the different maturities to the three model parameters (values for $\beta$ are fixed and remain unchanged).
+This is done to allow for a smooth transition between the different maturity levels,
+as using an single SABR model by itself is known to have discontinuities in the implied volatility surface~\citep{Hagan2015, Kim2021}.
 
-\begin{itemize}
-    \item \textbf{P}: Given a function $\alpha_t = f_{\alpha}(t, \textbf{P}) \rightarrow \mathbb{R}$, the values for $\alpha$ for each individual
-    \item \textit{SABR} model are encoded by P, such that $\textbf{P} \in \mathbb{R}^{5}$.
-
-    \item \textbf{Q}: Given a function $\rho_t = f_{\rho}(t, \textbf{Q}) \rightarrow \mathbb{R}$, the values for $\rho$ for each individual
-    \item \textit{SABR} model are encoded by Q, such that $\textbf{Q} \in \mathbb{R}^{4}$.
-
-    \item \textbf{R}: Given a function $\nu_t = f_{\nu}(t, \textbf{R}) \rightarrow \mathbb{R}$, the values for $\nu$ for each individual
-    \item \textit{SABR} model are encoded by R, such that $\textbf{R} \in \mathbb{R}^{4}$.
-\end{itemize}
-
-And finally, the daily parametric SABR model is given by the set of encoded parameters $\{P, Q, R\}$
-and the following equations to calculate values for $f_{\alpha}, f_{\rho}$, e $f_{\nu}$ at each unique maturity value $t$:
+Given the functions for the parameters $\alpha_t = f_{\alpha}(t, \textbf{P})$, $\rho_t = f_{\rho}(t, \textbf{Q})$, and $\nu_t = f_{\nu}(t, \textbf{R})$,
+and the encoding variables \textbf{P, Q}, and \textbf{R} respectively, such that $\textbf{P} \in \mathbb{R}^{5}$, $\textbf{Q} \in \mathbb{R}^{4}$, and $\textbf{R} \in \mathbb{R}^{4}$,
+the daily parameters for the SABR model are obtained by the following equations for any continuous value of $t$:
 
 \begin{equation}
     \label{f_alpha}
@@ -49,91 +42,96 @@ and the following equations to calculate values for $f_{\alpha}, f_{\rho}$, e $f
     f_{\nu}(t, \textbf{R}) = r_0 + r_1 t^{r_2} e^{r_3 t}
 \end{equation}
 
-The task of tuning the SABR model parameters is a supervised regression task.
-In machine learning, regression refers to problems where the output is a continuous variable, as opposed to classification, where the output is a discrete category.
-In our case, the output of the transformer model are the continuous SS scores for each parameter \(\alpha\), \(\rho\), and \(\nu\).
-Then, the top $p=80\%$ candidate points are passed as inputs to the BFGS algorithm, targeting the values \textbf{P, Q}, and \textbf{R}
-that minimize possible arbitrage opportunities of contracts with interpolated or extrapolated maturities and strikes.
+The task of calculating the encoding variables \textbf{P}, \textbf{Q}, and \textbf{R} for daily SABR models is then a supervised regression task.
+As previously mentioned, we use a transformer architecture to approximate the SS scores for each candidate point $\mathcal{S}_{i}^{t} \in \mathcal{S}^{t}$ from the daily observed input.
+Then, the top $p=80\%$ candidate points are used as inputs to the BFGS algorithm, targeting the values \textbf{P, Q}, and \textbf{R}
+and the objective function being minimizing the error function with respect to the selected candidate set.
+A list of the most commonly occurring maturity times, and their corresponding implied volatilities are used for the error function calculation,
+similarly to the selection a human trader would make when selecting the most relevant data points to train the model~\citep{Hagan2015, Kim2021}.
+For our training process, we use the 7 most common maturities within the entire dataset (as used by \citet{Kim2021}).
 
 \subsection{Proposed Encoder Architecture and Error Functions}
+\label{subsec:architecture}
 
 Transformers are a specific type of neural network architecture capable of capturing complex dependencies in sequential non-fixed length data.
 Within our proposed architecture, we use a transformer encoder to approximate the \textit{SS} scores
 for each candidate point $\mathcal{S}_{i}^{t} \in \mathcal{S}^{t}$ from the daily observed input.
-Then, for each training epoch it estimates a loss score for the mean squared error between the encoder's
-output and a z-score obtained by Monte Carlo estimation from a candidate set $\mathcal{S}^{t}$ of $k=1e2$ generated subsets from the original set.
-This is done to calculate the estimated z-score of the point, which is finally used as the target value for our model.
-Consequentially, if after training the model has converged to a mean low error for the estimated scores,
-the network parameters are deemed optimized to substitute the Monte Carlo process in estimating daily SS scores for the currently listed option contracts \citep{Kim2021}.
 
-\begin{lstlisting}[label={lst:lstlisting}]
-	[caption={The function $f$ calculates, for each maturity, the parameter's value using one of the equations at Eq. \ref{f_alpha}, \ref{f_rho} or \ref{f_nu}.},captionpos=b]
-SS_Score(maturities, candidate_set, p, k, sigma)
-	optimal_parameter = OptimizeForParameter(candidate_set)
-	
-	for candidate_point in candidate_set
-		// Generate k subsets of size Length(candidate_set) * p
-		// that contain the candidate_point
-		subset <- GenerateSubset(candidate_set, candidate_point, p, k)
-		suboptimal_parameter <- OptimizeForParameter(subset)
-		
-		error <- Mean(AbsoluteDifference(
-			f(maturities, suboptimal_parameter) - candidate_set
-			))
-		
-		ss_score <- Sqrt(e^(-Error / Sigma))
-		Append ss_score to subset_scores
-	
-	z_score <- (ss_score - Mean(ss_score)) / StdDev(ss_score)
-	
-	return z_score
-\end{lstlisting}
-
-\subsection{Details on the Choosen Encoder Architecture}
+\subsubsection{Details on the Choosen Encoder Architecture}
 
 Unlike recurrent neural networks (RNNs) and convolutional neural networks (CNNs), transformers do not rely on a sequential structure to process data.
 Instead, they use an attention mechanism, which allows each input element (or token) to consider the relationship with all other elements in the same sequence simultaneously.
-This is achieved through a series of layers called encoders (for encoding the input data) and decoders (for generating the output).
+This is achieved through a series of layers using attention heads.
 
-We specifically use the self-attention mechanism, which accepts continuous data and calculates attention for different heads through
-value (\texttt{value}), key (\texttt{key}), and query (\texttt{query}) matrices,
-resulting in an output weighted by the importance of each part of the sequence \citep{Wen2023, Vaswani2023}.
-When dealing with self-attention, the three matrices are the same.
+The attention mechanism accepts continuous data and calculates a value for different heads through the
+value ($V$), key ($K$), and query ($Q$) matrices,
+resulting in an output weighted by the importance of each element in the sequence~\cite{Wen2023, Vaswani2023}.
+Specifically, for our problem we use the mechanism of self-attention, and therefore the three matrices are equal.
 \begin{equation}
+    \label{eq:attention}
     \textit{Attention}(Q, K, V) = \textit{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
 \end{equation}
 
-Transformers are classified as machine learning algorithms due to their ability to learn patterns and relationships from data.
-They are trained using supervised techniques.
-In the context of the specific architecture we implemented,
-we use only the encoder block, with 4 input dimensions, 8 attention heads per block, and 8 blocks in total.
+Transformers are classified as machine learning algorithms due to their ability to learn patterns and relationships from data, and are trained using supervised techniques.
+In the context of our specific architecture, we use only the encoder block and adapt it to perform the regression on the SS scores.
 The hidden values are passed to fully-connected (FC) layers, and a final implicit fixed-point iteration block is used to obtain the scores as \textit{SS} z-normalized values.
-The model training stage is carried out on historical option data listed for the \textbf{S\&P 500} from January to December of 2021.
-The training epochs adjust the layer weights with an error function that minimizes the difference between its predictions and the Monte Carlo expected z-score values.
-
-\begin{figure}[H]
-    \label{fig:figure}
-    \begin{center}
-        \includegraphics[width=16cm]{images/architecture}
-        \caption{Visualization of the Transformer Encoder and Implicit Fixed Point Iteration Layers}
-    \end{center}
-\end{figure}
+The training epochs adjust the layer weights with an error function that minimizes the difference between its predictions and expected z-score values.
 
 \subsubsection{Details on the Implicit Layer}
-
-As defined in the previous chapter, we choose the implicit layers as the final hidden layers for our architecture for its summarization capabilities.
-We use the Anderson Acceleration framework \citep{Walker2011} as suggested by \citep{Kolter2020} for NLP and other sequential models.
-We chose the Deep Equilibrium Model variation for the Implicit Layer, which means using the following fixed point equation instead of the one at Eq. \ref{fixed_point}
+Using a Deep Equilibrium Model variation for the Implicit Layer, we adapt \hyperref[eq:fixed_point]{Equation~\ref*{eq:fixed_point}} by using the following fixed point equation instead:
 \begin{equation}
-    z^\ast = f(z^\ast, x)
+    \label{eq:dem}
+    \begin{center}
+        g_{\mathbf{W}}(x, z^\ast) = 0\\
+        z^\ast = f(z^\ast, x)
+    \end{center}
 \end{equation}
-
-
-The batched non-normalized Jacobian to be used as the gradient function in our code is given by the following equation,
-where $z*$ is the target output and $f$ is our activation function.
-Finally, $y$ are the hidden values as well as the final output normalized scores.
-
+where $f$ is our activation function, \textbf{W} are the layer weights and biases, and  $z*$ is the target output of a batched non-normalized Jacobian to be used as the gradient function in our code, given by the equation below.
+Finally, $y$ are the hidden values as well as the final output scores.
 \[
-    \left( \frac{\partial z^\ast(\cdot)}{\partial (\cdot)} \right)^T y = \left( \frac{\partial f(z^\ast, x)}{\partial (\cdot)} \right)^T g.
+    \left( \frac{\partial z^\ast(\cdot)}{\partial (\cdot)} \right)^T y = \left( \frac{\partial f(z^\ast, x)}{\partial (\cdot)} \right)^T g_{\mathbf{W}}
 \]
+
+\begin{figure}[h]
+    \includegraphics[width=0.5\textwidth]{images/architecture}
+    \caption{Visualization of the Transformer Encoder and Implicit Layers used in the proposed architecture.}
+    \label{fig:figure1}
+\end{figure}
+
+\subsubsection{Monte Carlo Estimation of Z-Scores}
+
+Instead of using the entire daily candidate set for calculating the encoded parameters \textbf{P}, \textbf{Q}, and \textbf{R},
+only a small subset of the candidate set is used to estimate the synthetic target z-scores for the model.
+
+For each data point the mean absolute error (MAE) between the parameter (\textbf{P}, \textbf{Q}, or \textbf{R}) fitted with all data points
+and the parameter fitted with a smaller percentage of the candidate set is calculated (\textbf{P'}, \textbf{Q'}, or \textbf{R'}) is estimated using
+Monte Carlo estimation with $k=1e2$ generated subsets from the original set, where k is the number of subsets
+and $p=0.8$ is the percentual size of the subset relative to the daily candidate set.
+
+This estimation using a finite number of subsets is necessary due to computational constraints, as the Monte Carlo estimation is a time-consuming process.
+Finally, for each training epoch the estimated z-score is normalized and used as target variable for the SS transformer model.
+Consequentially, if after training the model has converged to a mean low error for the estimated scores,
+the network parameters are deemed optimized to substitute the Monte Carlo process in estimating
+the daily SS scores for selecting the candidate set that best captures the daily implied volatility surface.
+
+\begin{algorithm}
+    \begin{algorithmic}[1]
+        \Require Daily candidate set $\mathcal{S}^{t}$, percentage $p=0.8$, number of subsets $k=1e2$
+        \State \alpha^{*}, \rho^{*}, \nu^{*} $\gets$ BFGS($\mathcal{S}^{t}$)
+        \State $\text{SS}_{\alpha}, \text{SS}_{\rho}, \text{SS}_{\nu} \gets \mathbf{0}$
+        \For{candidate $c$ in $\mathcal{S}^{t}$}
+            \State $\mathcal{S}_{i}^{t} \gets$ Sample($\mathcal{S}^{t}$, $k$, $p$)
+            \State \widetilde{\textbf{P}}, \widetilde{\textbf{Q}}, \widetilde{\textbf{R}} $\gets$ BFGS($\mathcal{S}_{i}^{t}$)
+            \State $\text{SS}_{\alpha, c} \gets \text{MAE}(f_{\alpha}(t, \widetilde{\textbf{P}}) - \alpha^{*})$
+            \State $\text{SS}_{\rho, c} \gets \text{MAE}(f_{\rho}(t, \widetilde{\textbf{Q}}) - \rho^{*})$
+            \State $\text{SS}_{\nu, c} \gets \text{MAE}(f_{\nu}(t, \widetilde{\textbf{R}}) - \nu^{*})$
+        \EndFor
+        \State z-normalize $\text{SS}_{\alpha}, \text{SS}_{\rho}, \text{SS}_{\nu}$
+    \end{algorithmic}
+    \caption{Monte Carlo Estimation of Target Z-Scores}
+    \label{alg:mc}
+\end{algorithm}
+
+Finally, the values for z-scores are used as the regression target for our model,
+and the error function is calculated as the root mean squared error (RMSE) between the predicted and target z-scores.
 

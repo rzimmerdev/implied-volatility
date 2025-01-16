@@ -1,97 +1,152 @@
 \section{Introduction}
 \label{sec:introduction}
 
-\subsection{A Brief Introduction to Implied Volatility and Surface Reconstruction}
+\subsection{Brief Introduction to Options and Implied Volatility}
 \label{subsec:ivs}
 
-Option contracts are one of the most important types of derivative contracts in the context of finacnial markets,
-and implied volatility surfaces play a critical role in finding the correct no-arbitrage price~\cite{Ludkovski2023} of these contracts.
+Option contracts are one of the most important types of derivative contracts in the context of financial markets.
 A derivative is a contract traded with respect to another asset (also called the underlying asset)
-and an option specifically allows the buyer of the contract to sell or buy - called put and call contracts, respectively -
-the specified asset from the seller at a predefined future date.
-The pricing equations for these derivatives, called the Black-Scholes model, requires knowing the values for the time to maturity of the contract,
-the price of the underlying asset to be traded, the price of the asset to be traded and the market's risk-free rate~\citep{Black1973}.
+and an option contract allows the buyer of the contract to sell or buy the specified asset from the seller at a predefined future date.
+The pricing equations for these derivatives, called the Black-Scholes model, require knowing the values for the time to maturity of the contract,
+the price of the underlying asset to be traded, the price of the asset to be traded and the market's risk-free rate at the time~\citep{Black1973}.
 An additional variable, called the implied volatility (\textit{IV} or $\sigma_{iv}$) is also required for the pricing of these contracts.
 This value refers to the market's expected value for the volatility of the asset price up until the time of maturity.
+% and the implied volatility surfaces play a critical role in finding the correct no-arbitrage price~\cite{Ludkovski2023} of these contracts.
 
-Having access to the implied volatility values allows investors to make sales at the correct prices consistent
-with the current no-arbitrage price of the contracts within the market.
-However, it is not always possible to obtain the true \textit{IV} values that fully reflect the characteristics of existing offers.
-Ensuring a way to obtain this value with confidence and readily available data in the market is a crucial task for quantitative analysts \citep{Kim2006}.
-Traditional strategies for daily estimation of these values are predominantly based on linear or spline interpolation
-algorithms \citep{Homescu2011} or stochastic differential equation models \citep{Jordan2011} that use numerical methods to approximate their
-values from existing option contracts in the market.
-Both methods try to approximate the correct value for the implied volatility for each pair of time to maturity and future asset price currently listed (also called strike price).
+Having access to the implied volatility values allows investors to make sales at the prices consistent with the current expected contract price,
+that is, the no-arbitrage price according to the market expectancy.
+However, the \textit{IV} values corresponding to all possible strike prices and maturities are not directly observable in the market.
+Ensuring a way to obtain these values with confidence and readily available data in the market is a crucial task for quantitative analysts~\citep{Kim2006}.
+Usual strategies for estimating these values daily are predominantly based on linear or spline interpolation
+algorithms~\citep{Homescu2011} or stochastic differential equation models~\citep{Jordan2011}
+that use numerical methods to approximate the values from existing listed contracts.
+Both methods try to approximate the correct value for the implied volatility for each pair of time to maturity and strike price.
 This approach allows visualizing the model results in the form of a surface,
 where the \textbf{XY} axes are the maturity and strikes pairs and the \textbf{Z} axis is the \textit{IV}.
-This surface is called the \textbf{implied volatility surface} (IVS).
-The surface, noted as $\mathcal{S}$ is therefore a function of the maturity time $t$ and the strike price $K$,
+This surface, called the \textbf{implied volatility surface} (IVS), noted as $\mathcal{S}$ is therefore a function of the maturity time $t$ and the strike price $K$,
 
 \begin{equation}
     \label{eq:ivs}
-    \mathcal{S} = f(t, K) \textrm{, where } f: \mathbb{R}^{2} \rightarrow  \mathbb{R}
+    \mathcal{S} \coloneqq f(t, K), \quad \text{where } f \colon \mathbb{R}^{2} \to \mathbb{R}.
 \end{equation}
 
 Ensuring accurate predictions of the IVS is crucial, as even small errors can lead to incorrect pricing and consequently
-large losses of profit or even negative return\citep{Hagan2014} given the leveraging capabilities of options when compared to non-derivative securities.
-Classic models such as linear interpolations, polynomial fitting, and \textit{splines} generate non-smooth surfaces or arbitrage opportunities in the resulting
-IVS and often struggle to effectively capture market dynamics, besides lacking flexibility for extrapolation~\citep{Hagan2014}.
+large losses of profit or even negative return~\citep{Hagan2014} given the leveraging capabilities of options when compared to non-derivative securities.
+Classic models such as linear interpolation, polynomial fitting, and \textit{splines} not only lack flexibility for extrapolation,
+but also generate either non-smooth surfaces, arbitrage opportunities, or both~\citep{Hagan2014}.
 
 \subsection{Contributions of the Presented Work}
 \label{subsec:contributions}
 
-In this paper, we propose an approach to address the challenges of interpolation and extrapolation of the IVS, reducing arbitrage opportunities.
+In this paper, we propose an approach to address the challenges of interpolation and extrapolation of the IVS, focusing on reducing arbitrage opportunities.
 The chosen method uses a stochastic differential equation solution approach, specifically the \textit{Stochastic Alpha, Beta, Rho} (\textit{SABR}) model.
-Historical values of observed implied volatilities are then used to optimize the weights of a nonlinear deep neural network.
-
-The parameters $\alpha, \rho, \nu$ of the \textit{SABR} model are obtained through a simple implementation of the
+The parameters $\alpha, \rho, \nu$ of the \textit{SABR} model are obtained through the
 Broyden-Fletcher-Goldfarb-Shanno (BFGS) quasi-Newton non-linear optimization algorithm~\cite{Broyden1970, Fletcher1970, Goldfarb1970, Shanno1970}.
 This step is commonly performed using only a subset of the points observed daily~\cite{Kim2021},
 due to the fact that using all points introduces various outliers that do not match the real prices of the derivative, which in turn increases the variance of the final model.
 To solve this difficulty, the points chosen for the optimization step are often manually filtered according to criteria set by human experts~\cite{Hagan2002},
 and only a candidate subset of the original points is used.
-Rather than manually selecting these candidate points, the use of models capable of receiving point clouds and returning a score to select the best points
+Rather than manually selecting these candidate points, the use of models capable of receiving point clouds and returning a score, such as transformers, to select the best points
 automatically has been proposed by~\citet{Hagan2002} instead.
-The main contribution of this research will be the adaptation of \textit{neural implicit layers}, a variation of fully connected linear layers that
-solve a fixed point equation to be used as a final layer in our chosen transformer architecture.
-This type of layer has efficiently been used for representing smooth densities and state-of-the-art performance in function
-fitting tasks similar to the one presented here~\cite{Kolter2020, Kawaguchi2021}, and
-unlike regular linear neural layers, the chosen architecture also reduces the size and complexity of the final model compared to \citet{Kolter2020}
-while still performing better at handling unordered point clouds over time compared to recurrent neural layers~\citep{Kim2024}.
-The optimization and filtering steps are discussed in more detail under the development section.
+The main contribution of this research will be the adaptation of \textit{neural implicit layers},
+a physics-inspired variation of fully connected linear layers that outputs a solution to a fixed point equation, to be used as the output layer to a transformer architecture.
+This approach is an implicit fixed-point solver variation for the scoring model proposed by~\citet{Kim2021}, aiming to enforce a zero arbitrage condition in the optimization process.
+This type of layer has efficiently been shown to perform well representing smooth surface densities and demonstrated state-of-the-art performance in function
+fitting tasks similar to the one presented here~\cite{Kolter2020, Kawaguchi2021},
+all while being computationally faster for solving interpolation tasks than linear layer models with similar performance~\cite{Kolter2020}.
+Additionally, transformers have also been shown to perform better at handling unordered point clouds over time compared to recurrent neural layers~\citep{Kim2024}.
 
 \subsection{The Transformer Architecture}
-The \textit{SABR} model is a stochastic volatility model used to obtain smooth surfaces, i.e., continuous and infinitely differentiable at all points \citep{Hagan2015}.
-In the context of this work, a score will be assigned for each candidate point in the daily listed options contracts.
-This score, called the \textit{summarized suitability} score (\textit{SS} score)
-corresponds to the suitability of the candidate point to summarize the characteristics of the generated surface, i.e.,
+\label{subsec:transformer}
+The aforementioned \textit{SABR} model is a stochastic volatility model used to obtain smooth surfaces, i.e.,
+continuous and infinitely differentiable at all points~\cite{Hagan2015}.
+In the context of this work, a score will be assigned for each candidate point of the daily listed options contracts,
+called the \textit{summarized suitability} score (\textit{SS} score) by \citet{Kim2021}.
+This score corresponds to the suitability of the candidate point to summarize the characteristics of the generated surface, i.e.,
 how feasible it is to reduce the number of candidates when optimizing the values for one of the parameters of the SABR model
-without altering the resulting surface shape or its smoothness\footnote{The use of a per-point score is similar to what the principal components of a collection of points is within the Principal component analysis technique}.
-In summary, this score value is used to remove points with the lowest score, that may introduce arbitrage in the optimization process of the \textit{SABR} models.
+without altering the resulting surface shape or its smoothness\footnote{The use of a per-point score is similar to what the principal components of a collection of points is when using the Principal Component Analysis (PCA) technique.}.
+In summary, the score is used to select the highest valued points, and therefore the most representative of the surface,
+removing those that might introduce arbitrage in the optimization process for each of the \textit{SABR} models~\cite{Kim2021}
+(a separate model is fitted for each unique strike price in a given day).
+\hyperref[subsec:sabr]{Section~\ref*{subsec:sabr}}
+covers the details of fitting the \textit{SABR} model at each strike price.
 
-Usually, the choice of subsets and the scoring process is done manually by analysts, as mentioned earlier,
-and the next section will focus on the details covering the \textit{SABR} model and how we use a implicit neural layer with attention,
-specifically an \textbf{encoder} architecture for assigning scores automatically given the daily points candidate set.
-This approach is an implicit fixed-point solver variation for the scoring model proposed in \citep{Kim2021}
+\subsection{Fixed-Point problems}
+\label{subsec:implicit}
 
-\subsection{Deep Implicit Layers}
-Differently from fully connected layers in which the transformation from input to output is defined explicitly,
-implicit layers are instead defined by conditions that the output must satisfy.
-For explicit layers, a given output $z$ is computed directly from the input $x$ using a function $f$, such that $z = f(x)$.
-In contrast, an implicit layer is the function $g$ so that it depends on both the input $x$ and the expected output $z$,
-where $z$ is a solution for the equation and the solution to the layer, namely the weights $\mathbf{W}$ are such that
+Differently from the usual function approximation tasks, a fixed point problem is instead defined by conditions that the output must satisfy.
+For explicit functions, a given output $z$ is computed directly from the input $x$ using a function $f$, such that $z = f(x)$.
+In contrast, an implicit function  $g$ is such that it depends on both the input $x$ and the expected output $z$,
+where $z$ is a solution for the equation:
+
 \begin{equation}
-    \label{fixed_point}
-    g_{\mathbf{W}}(x, z) = 0.
+    \label{eq:fixed_point}
+    g(x, z) = 0
 \end{equation}
 
 Formulating the problem as a fixed point equation can be used for a multitude of problems, including finding fixed points in recurrent networks,
-solutions to differential equations leading to Neural ODEs, and several optimization problems \citep{Chen2019}.
+solutions to differential equations leading to Neural ordinary differential equations, and several physics optimization problems~\cite{Chen2019}.
 The implicit formulation offers several practical advantages, primarily the separation of the solution method from the layer
-definition which can be useful in maintaining interpretability of the resulting model\citep{Kawaguchi2021}.
+definition which can be useful in maintaining interpretability of the resulting model\cite{Kawaguchi2021} and as a way to enforce constraints in the optimization process.
 
-Moreover, implicit layers offer significant benefits specifically in deep learning and automatic differentiation frameworks.
+Moreover, the resulting implicit layer offers significant benefits specifically in deep learning and automatic differentiation frameworks~\cite{Massaroli2021,Kolter2020}.
 Automatic differentiation methods store the entire computation graph, which can be memory-intensive.
 With implicit layers, however, the implicit function theorem allows computing gradients directly at the solution point and
-therefore storing intermediate variables becomes redundant \citep{Massaroli2021}.
-This improves memory efficiency, making implicit layers particularly advantageous when substituting existing layers within large deep learning models \citep{Li2020}.
+therefore storing intermediate variables becomes redundant~\cite{Massaroli2021}.
+This improves memory efficiency, making implicit layers particularly advantageous when substituting existing layers within large deep learning models~\cite{Li2020}.
+
+\subsection{Anderson Acceleration for Implicit Layers}
+\label{subsec:anderson}
+
+The Anderson Acceleration (AA) method is a technique used to accelerate the convergence of fixed-point iterations.
+It is particularly useful when the fixed-point iteration is slow to converge or when the fixed-point iteration is used in a deep learning context.
+The method is based on the idea of extrapolating the current fixed-point iteration using a linear combination of the previous iterations.
+For this work, we use a Equilibrium Model variation of the Anderson Acceleration method, which is particularly useful for implicit layers in neural networks.
+The AA method is used to solve the fixed-point equation within the layer, by extrapolating the current fixed-point iteration using a linear combination of the previous iterations.
+The AA method is particularly useful for implicit layers in neural networks, as it allows for faster convergence of the fixed-point iteration.
+Our proposed architecture uses the AA method to solve the fixed-point equation in the implicit layer,
+according to the \hyperref[alg:anderson]{Algorithm~\ref*{alg:anderson}} for our implementation of the AA method.
+
+\begin{algorithm}
+    \begin{algorithmic}[1]
+        \Require Function \( f \), initial point \( x_0 \), memory size \( m \), damping factor \( \lambda \), maximum iterations \( K \), tolerance \( \epsilon \), mixing factor \( \beta \)
+        \State Initialize \( X_0 = x_0, X_1 = F_0 = f(x_0), F_1 = f(F_0) \)
+        \For{$k = 2$ to \( K \)}
+            \State \( j \gets \min(k, m) \)
+            \State \( G = F_{0, \ldots, j} - X_{ 0, \ldots, j} \)
+            \State \( H = G G^\top + \lambda I \)
+            \State Solve \( H^{-1} \cdot y = \alpha \)
+            \State \( \alpha \gets \alpha_{1, \ldots, n + 1} \)
+            \State \( X_k \gets \beta \alpha^\top F_0 + (1 - \beta) \alpha^\top X_0 \)
+            \State \( F_k \gets f(X_k) \)
+            \State Compute residual:
+            \[
+                \text{residual} = \frac{\| F_k - X_k \|}{\| F_k \| + 10^{-5}}
+            \]
+            \If{residual \(<  \epsilon \)}
+                \State \textbf{break}
+            \EndIf
+        \EndFor
+        \State \Return \( X_k \)
+    \end{algorithmic}
+    \caption{Equilibrium Model with Anderson Acceleration}
+    \label{alg:anderson}
+\end{algorithm}
+
+The final deep equilibrium model used within the implicit layer uses the Anderson Acceleration algorithm to solve the fixed-point equation,
+and the backpropagation algorithm is used to find the weights that minimize the error function of the model.
+The solution to the fixed-point equation, is then used as the output of the layer, as shown by \hyperref[alg:forward]{Algorithm~\ref*{alg:forward}}.
+
+\begin{algorithm}
+    \begin{algorithmic}[1]
+        \Function{ImplicitLayer}{$x, m, \lambda, \epsilon, \beta$}
+            \State \textbf{function} $f(x) \gets W \cdot x + b$
+            \State $x \gets \texttt{AA}(f, x, m, \lambda, \epsilon, \beta)$
+            \State $y \gets x \cdot W^{T} + b$
+
+            \State \Return $y$
+        \EndFunction
+    \end{algorithmic}
+    \caption{Implicit layer forward pass with Anderson acceleration (AA).}
+    \label{alg:forward}
+\end{algorithm}

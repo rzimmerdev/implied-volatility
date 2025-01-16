@@ -1,24 +1,21 @@
 \section{Conclusion}
-\subsection{Summary}
+\label{sec:conclusion}
 
-This work presents an architecture taking as inspiration approaches from both \citep{Kim2021} and \citep{Kolter2020}
+\subsection{Summary}
+\label{subsec:summary}
+This work presents an architecture taking as inspiration approaches from both~\citet{Kim2021} and~\citet{Kolter2020}
 for the task of adjusting the parameters of the SABR model using a neural network based on the transformer architecture
 (specifically the \textit{encoder} element) with implicit deep equilibrium layers as the regression component.
-The combination of the SABR model with the transformer architecture was used to replicate the patterns of the daily implied volatility surface,
-generating a smooth surface that reduces arbitrage opportunities for the existing contracts observed on the day.
-The candidate scoring and selection process is performed automatically, instead of manually,
-and the fine-tuning of the model to new daily observations is extremely fast as shown
-by comparing the Monte Carlo estimation method to the Model's training time in Table \ref{tab:training}.
-The possibility of using these models on modern GPU, which allows for faster model training times allow
-investors to fine-tune models and identify new trading oportunities in much smaller time intervals.
+The combination of the SABR model with the transformer architecture for candidate selection was used to replicate the patterns of the daily implied volatility surface,
+generating a smooth surface that reduces arbitrage opportunities through the solution of a fixed-point problem with the implicit layers as outputs.
+The candidate scoring and selection process is performed automatically, instead of heuristically,
+and the fine-tuning of the model allows for new daily observations to be taken into account when adjusting the SABR parameters for the next trading day.
 
 \subsection{Implications and Future Work}
-
+\label{subsec:implications}
 The main focus of this work was to merge the approach using the transformer and the implicit layers to replace the manual selection of scores for candidates,
-as well to show the possibility of future research focusing on High-Frequency Trading (HFT) strategies options arbitrage strategies.
-Additional market factors and input features are also an interesting improvement to the chosen approach.
-Furthermore, it is important to consider the choice of the optimizer and subset sizes for the parameters \textbf{P, Q, R},
-as the time required for the pre-processing step is a major limitation.
-Adapting the model to other financial instruments is also a promising extension to the current work,
-as it allows for the study of the model's adaptation to different market regimes and economic conditions (both micro- and macroeconomic),
-which may reveal new trading opportunities.
+as well to show the possibility of future research focusing on High-Frequency Trading (HFT)
+options arbitrage strategies given the execution speed of the model shown in \hyperref[tab:performance]{Table~\ref*{tab:performance}}.
+Additional market factors and input features are also an interesting improvement to the chosen approach and a promising extension in future research.
+Adapting the model to use extrinsic features besides the observed data, such as macroeconomic indicators, market indexes, and other financial instruments,
+could allow the model to adapt to changing market regimes and economic conditions, allowing for both exploitation and resilience to intraday arbitrage opportunities.

@@ -3,8 +3,8 @@
 %Template version as of 6/27/2024
 
 \usepackage{cite}
-\usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
+\usepackage{amsmath,amsfonts}
+\usepackage{multicol}
 \usepackage{float}
 \usepackage{graphicx}
 \usepackage{caption}
@@ -13,6 +13,12 @@
 \usepackage{hyperref}
 \usepackage{natbib}
 \usepackage{listings}
+\usepackage{blindtext}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{algorithmicx}
+\usepackage{mathtools}
+\usepackage{cleveref}
 \newcommand{\BibTeX}{\textrm{B \kern -.05em \textsc{i \kern -.025em b} \kern -.08em
 T \kern -.1667em \lower .7ex \hbox{E} \kern -.125emX}}
 
@@ -20,6 +26,7 @@ T \kern -.1667em \lower .7ex \hbox{E} \kern -.125emX}}
     \input{cover}
 
     \input{content/introduction}
+    \newpage
 
     \input{content/theory}
 
@@ -27,6 +34,7 @@ T \kern -.1667em \lower .7ex \hbox{E} \kern -.125emX}}
 
     \input{content/conclusion}
 
-    \bibliographystyle{unsrtnat}
-	\bibliography{bibliography}
+    % skip to new page
+    \bibliographystyle{plain}
+    \bibliography{bibliography}
 \end{document}

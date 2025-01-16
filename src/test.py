@@ -1,4 +1,5 @@
 import argparse
+from time import perf_counter
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -9,7 +10,7 @@ from src.models.sst import MultiSST
 from src.sabr import SABR
 
 
-def results(model: MultiSST, score_dataset: ScoresDataset):
+def results(model: MultiSST, score_dataset: ScoresDataset, plot=False):
     value_datasets = {key: score_dataset.get_dataset(key) for key in ["alpha", "rho", "volvol"]}
 
     viewer = Dataviewer()
@@ -33,7 +34,8 @@ def results(model: MultiSST, score_dataset: ScoresDataset):
 
         ivol_hat = parametric_sabr.smooth_surface(S, K, T, rf, div, beta=beta)
 
-        viewer.plot_ravel(K, T, ivol_hat, ax[0, day - idx])
+        if plot:
+            viewer.plot_ravel(K, T, ivol_hat, ax[0, day - idx])
 
         # from daily, remove points that are outliers
         std = ivol_daily.std()
@@ -47,9 +49,11 @@ def results(model: MultiSST, score_dataset: ScoresDataset):
         T_daily = np.delete(T_daily, pos)
         ivol_daily = np.delete(ivol_daily, pos)
 
-        viewer.plot(K_daily, T_daily, ivol_daily, ax[1, day - idx])
+        if plot:
+            viewer.plot(K_daily, T_daily, ivol_daily, ax[1, day - idx])
 
-    viewer.show()
+    if plot:
+        viewer.show()
 
 
 def test():
@@ -58,6 +62,28 @@ def test():
 
     path = "weights"
     model.load_checkpoint(path)
+
+    # benchmark results function
+    heat_up = 5
+    k = 10
+
+    for _ in range(heat_up):
+        results(model, scores_dataset, plot=False)
+
+    t = []
+    for _ in range(k):
+        start = perf_counter()
+        results(model, scores_dataset, plot=False)
+        t.append(perf_counter() - start)
+
+    avg = sum(t) / k
+    std = np.std(t)
+    print(f"Average time: {avg:.4f} seconds, std: {std:.4f} seconds")
+    print(f"Standard deviation: {std:.4f} seconds")
+    num_days = len(scores_dataset)
+    num_points_avg = 20
+    print(f"Average time per day per point: {avg / num_days / num_points_avg:.4f} seconds")
+
 
     # plot train losses (results/{model}_losses.csv)
     losses = {key: np.loadtxt(f"results/{key}_losses.csv", delimiter=",") for key in ["alpha", "rho", "volvol"]}
@@ -70,8 +96,6 @@ def test():
 
     plt.legend()
     plt.show()
-
-    results(model, scores_dataset)
 
 
 if __name__ == "__main__":

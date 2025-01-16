@@ -15,7 +15,11 @@ def train(checkpoint, batch_size=1, num_workers=8, epochs=100, lr=1e-5):
     if checkpoint:
         path = checkpoint
     if not model.exists(path):
-        model.train(scores_dataset, num_workers, epochs)
+        try:
+            model.train(scores_dataset, num_workers, epochs)
+        except KeyboardInterrupt:
+            pass
+        print("Saving model...")
         model.save_checkpoint(path)
 
         # save train losses to results/{name}_losses.csv [alpha_loss.csv, rho_loss.csv, volvol_loss.csv]
