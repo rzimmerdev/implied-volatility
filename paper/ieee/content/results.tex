@@ -4,18 +4,18 @@
 \subsection{Data Description and Pre-Processing}
 \label{subsec:data}
 
-The data used for training was obtained from historical options data on the $SPY$ asset from January 2021 to December 2022.
-The dataset contains various columns about traded options, indexed by date, including strike prices, future prices, maturities, implied volatilities, among others.
+The dataset used for training was obtained from historical traded option contracts on the $SPY$ asset from January 2021 to December 2022, with a total of 68 unique days.
+The dataset contains various columns on traded options, indexed by date, including strike prices, future contract prices, maturities, implied volatilities, among others.
 Relevant to our study, the principal columns used were:
 \begin{itemize}
     \item \textbf{Underlying}: Price of the underlying asset.
     \item \textbf{Strike}: Option's strike price.
     \item \textbf{Expiration}: Days remaining until the option's expiration.
     \item \textbf{Implied Volatility}: Value for the implied volatility.
-    \item \textbf{Date}: Current date, used as the preprocessed set index.
+    \item \textbf{Date}: Traded date for the contract, used as the preprocessed dataset index.
 \end{itemize}
 
-Additionally, two columns were calculated to be used as features for the model:
+Additionally, two columns were added to be used for the Monte Carlo estimation:
 \begin{itemize}
     \item \textbf{Maturity}: Calculated by dividing \textit{Expiration} by 252 (working days in a year) to normalize the maturity time.
     \item \textbf{Risk-free rate}: Risk-free rate obtained from the Federal Reserve Economic Data (FRED) for the corresponding period.
@@ -25,44 +25,42 @@ Additionally, two columns were calculated to be used as features for the model:
 \subsection{Data Preprocessing}
 \label{subsec:preprocessing}
 
-The data preprocessing involved several essential steps, predominantly performed to allow the use of the data directly
-in the transformer architecture and subsequent use to generate the surface for historical data.
+The data preprocessing involved several essential steps, predominantly to allow the use of the surface data directly
+in the transformer architecture and subsequent generation of the surface for historical data.
 Each of the trained transformers (one for each parameter $\alpha, \rho$, or $\nu$) takes four dimensions as input, which are:
 \begin{enumerate}
     \item Time to maturity;
-    \item The actual input value for the parameter ($\alpha, \rho$, or $\nu$);
+    \item The daily parameters $\alpha, \rho$, or $\nu$ calculated using the \textit{BFGS} optimization algorithm;
     \item $\mathbf{1}$ if the parameter was calculated for the current day, $\mathbf{0}$ if it was calculated for a fixed set of maturities
     (top 7 most frequent maturities) using the previous day fitted parameters;
     \item Parameter value calculated using the previous day's $\mathbf{P}$, $\mathbf{Q}$ and $\mathbf{R}$ values for same strike and maturity.
 \end{enumerate}
 
-The target variable is the scores generated using all candidate points for the current day,
-and the model's error function uses the percentage $p = 80\%$ of points and is trained to minimize the quadratic error function of the scores.
-For training and testing we also observed that the choice of $\beta = 0.5$ performed best at minimizing the error function.
+The target scores were generated beforehand using the aforementioned Monte Carlo method with $p = 80\%$ and $k = 1 \times 10^{2}$.
+For training and testing we also observed that the choice of $\beta = 0.5$ performed best at minimizing the surface's MAE.
 
 \subsection{Results and Surface Comparison}
 \label{subsec:results}
 
-A baseline linear interpolation implementation for the daily observed points was also used to compare our trained
-model's performance by interpolating the points internal to a grid of strikes and maturity dates generated for within the boundary pairs for each day,
-that is, no extrapolation was performed due to the hardships of the linear model to predict values outside the observed range.
+A baseline linear interpolation for the daily observed points was also used to compare our trained
+model's surfaces by interpolating the points within a fixed grid of strikes and maturity.
+No extrapolation was performed due to the nature of the linear model.
 
-Our transformer model was trained on the dataset, with about 68 days and 44k observations total.
-With an early stopping sensitivity of $\epsilon = 10^{-3}$, the training was performed with a maximum epoch range of $10^{3}$ epochs using the Adam optimizer.
-For the implicit layer, we used the Anderson Acceleration algorithm with a maximum of 10 iterations and a convergence threshold of $10^{-6}$.
+Our transformer model was trained on the dataset, with about 44k observations total resulting in 68 days.
+With an early stopping sensitivity of $\epsilon = 10^{-3}$, the training was run with a maximum epoch range of $10^{3}$ using the Adam optimizer.
+For the implicit layer, we used the Anderson Acceleration algorithm with a maximum of 10 iterations,
+convergence threshold of $\eps=10^{-6}$, damping factor of $\lambda=0.1$, and memory size of $m=5$.
 The training time for the transformer model was approximately 8 minutes and 11 seconds,
 while the Monte Carlo preprocessing time was around 21 minutes and 5 seconds for the entire dataset.
-Due to the nature of the implicit layer, a simple batch size of 1 was used to avoid memory issues.
-The used architecture is a transformer encoder block with 8 attention heads, 2 linear layers with 256 hidden units and 2 implicit layers with 256 and 128 hidden units, respectively.
+A batch size of 8 was used to avoid memory issues when training the implicit layer.
+The network architecture is a transformer encoder block with 8 attention heads, 2 linear layers with 256 hidden units and 2 implicit layers with 256 and 128 hidden units, respectively.
 An illustration of the architecture is shown in \hyperref[fig:figure1]{Figure~\ref*{fig:figure1}}, and a dropout rate of 0.1 was used for the dropout layers.
 
 \begin{figure}[h]
     \begin{center}
         \includegraphics[width=0.5\textwidth]{images/losses}
-        \caption{Historical loss function from on training session data.}
-        \label{fig:figure2}
-        \includegraphics[width=0.5\textwidth]{images/unfitted}
-        \caption{Surface generated using a manually optimized SABR model, with all data points, resulting in an out-of-range peak.}
+        \caption{Historical loss curve on training session data. Curves were cut for better visualization,
+            with the largest episode being 2950 epochs for the $SST_\alpha$ (alpha) network.}
         \label{fig:figure3}
     \end{center}
 \end{figure}
@@ -84,6 +82,15 @@ An illustration of the architecture is shown in \hyperref[fig:figure1]{Figure~\r
     \label{tab:training}
 \end{table}
 
+For benchmarking, the execution time was measured using the Python \texttt{perf\_counter} method and a heatup of the model was executed on the entire dataset.
+Separate tests using a linear interpolation with the original points and with the implicit layer were performed to compare visually the generated surface's error.
+The training and tests were performed using leave-one-out cross-validation (LOO), due to the small amount of days in the dataset (68 days).
+The train and test losses shown in \hyperref[tab:training]{Table~\ref*{tab:training}} are calculated using LOO,
+while the execution time shown below in \hyperref[tab:performance]{Table~\ref*{tab:performance}} is calculated using the entire dataset.
+The RMSE values for the test data show that the model was able to generalize well to the test data, with the lowest RMSE value for the $\rho$ parameter.
+The error values were calculated by comparing the generated surface with the original points, as mentioned in the previous section,
+and a visual comparison of the surfaces is shown in \hyperref[fig:figure4]{Figure~\ref*{fig:figure4}}.
+
 \begin{table}[!ht]
     \centering
     \begin{tabular}{|l|l|l|l|}
@@ -97,15 +104,7 @@ An illustration of the architecture is shown in \hyperref[fig:figure1]{Figure~\r
     \label{tab:performance}
 \end{table}
 
-For benchmarking the execution time, a small heatup of the model was performed, and the execution time was measured using the Python \texttt{perf\_counter} method.
-Separate tests using a linear interpolation with the original points and with the implicit layer were performed to compare the generated surface's error.
-The results of the training and testing of the model are shown in \hyperref[tab:training]{Table~\ref*{tab:training}} and \hyperref[fig:figure2]{Figure~\ref*{fig:figure2}}.
-The RMSE values for the test data show that the model was able to generalize well to the test data, with the lowest RMSE value for the $\rho$ parameter.
-The error values were calculated by comparing the generated surface with the original points, as mentioned in the previous section.
-
-
 \begin{figure*}
-    \label{fig:figure4}
     \begin{center}
         % First row
         \includegraphics[width=7cm]{images/linear_1}
@@ -119,7 +118,8 @@ The error values were calculated by comparing the generated surface with the ori
         \includegraphics[width=7cm]{images/linear_3}
         \includegraphics[width=7cm]{images/implicit_3}
 
-        \caption{Surfaces interpolated on test data using a linear interpolation model (left) compared to the SABR model
-        fitted with the output of the implicit transformer architecture (right).}
+        \caption{Surfaces interpolated on test data using a linear interpolation model (left) compared to the SABR models
+        fitted with the candidate set selected using the trained implicit transformer architecture (right).}
+        \label{fig:figure4}
     \end{center}
 \end{figure*}

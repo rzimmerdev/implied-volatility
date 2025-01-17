@@ -19,8 +19,10 @@
 \usepackage{algorithmicx}
 \usepackage{mathtools}
 \usepackage{cleveref}
+\usepackage[printwatermark]{xwatermark}
 \newcommand{\BibTeX}{\textrm{B \kern -.05em \textsc{i \kern -.025em b} \kern -.08em
 T \kern -.1667em \lower .7ex \hbox{E} \kern -.125emX}}
+\newwatermark[allpages,color=red!50,angle=45,scale=1,xpos=0,ypos=0]{PREPRINT}
 
 \begin{document}
     \input{cover}
@@ -33,6 +35,7 @@ T \kern -.1667em \lower .7ex \hbox{E} \kern -.125emX}}
     \input{content/results}
 
     \input{content/conclusion}
+    \newpage
 
     % skip to new page
     \bibliographystyle{plain}

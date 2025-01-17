@@ -25,16 +25,14 @@ email address or ORCID}
 
 \begin{abstract}
     We implement a neural network architecture based on deep implicit layers with the objective of optimizing the parameters of
-    multiple SABR (stochastic alpha, beta, rho) models for interpolation and extrapolation of implied volatility surfaces in the context of financial options.
-    The parameter values for the models are trained on daily data points and used for generating smooth interpolated points in the surface.
-    The motivation behind our approach is to reduce arbitrage opportunities when generating smooth interpolation and extrapolation of the surface, i.e.,
-    making it infinitely differentiable at all points while still matching existing contracts.
-    The proposed architecture solves the problem of optimizing for the $\alpha, \rho, \nu$ parameters
-    while minimizing statistical arbitrage opportunities for observed contracts within the generated surface.
-    Our methodology includes using historical observed values of listed options as well as the calculated implied volatility for these contracts.
+    multiple SABR (stochastic alpha, beta, rho) models of implied volatility surfaces in the context of financial options.
+    The parameter values for the models are fitted on daily data points and used for generating smooth interpolated points in the surface.
+    The motivation behind our approach is to reduce arbitrage opportunities when generating smooth interpolation and extrapolation of the surface.
+    The proposed architecture determines the parameters of the SABR model that optimize for minimal statistical arbitrage opportunities in observed contracts.
+    We fit the model using a dataset of historical listed option contracts as well as the calculated implied volatility for these contracts.
     The innate ability of transformer architectures to process observations of sequences with non-fixed lengths, i.e.,
-    for contracts with varying expiration dates is used to choose candidate points that best summarize the daily surfaces.
-    The generated surfaces are then compared to a baseline linear interpolation model.
+    for contracts with varying expiration dates is used to choose candidate points that best summarize the observed data.
+    The surfaces generated with our network are then compared to a baseline linear interpolation model.
 \end{abstract}
 
 \begin{IEEEkeywords}
