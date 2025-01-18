@@ -3,18 +3,18 @@
 
 \subsection{Summary}
 \label{subsec:summary}
-This work presents an architecture taking as inspiration approaches from both~\citet{Kim2021} and~\citet{Kolter2020}
-for the task of chosing a candidate set for fitting the parameters of daily SABR models using a neural network based on the transformer architecture
-(specifically the encoder element) with implicit deep equilibrium layers as the output components.
-The combination of the SABR model with the transformer architecture for candidate selection was used to replicate the patterns of the daily implied volatility surface,
-generating a smooth surface that reduces arbitrage opportunities through the solution of a fixed-point problem using the Anderson Acceleration algorithm within the implicit layers.
-The candidate scoring and selection process is performed automatically, instead of heuristically by human traders,
-the model allows for the fine-tuning using new daily observations to be taken into account when adjusting the SABR parameters for the next trading day.
+This work presents an architecture drawing on approaches by Kim et al. (2021)~\cite{Kim2021} and Kolter et al. (2020)~\cite{Kolter2020}
+to optimize the parameters of multiple SABR models using a neural network with implicit deep equilibrium layers as the candidate set selection mechanism.
+Our approach was successful in enforcing the no-arbitrage conditions in the resulting surfaces by solving for a fixed-point problem between the observed data and generated IV values.
+The time complexity of the trained model vastly outperformed the Monte Carlo method, with a speedup of 6300x, and was able to generalize well to test data,
+as shown in \hyperref[tab:performance]{Table~\ref*{tab:performance}} and \hyperref[tab:training]{Table~\ref*{tab:training}}, respectively.
+Additionally, the neural network approach supports fine-tuning to incorporate new daily observations;
+a significant advantage over the Monte Carlo process, which would require estimation from scratch using the new dataset.
 
 \subsection{Implications and Future Work}
 \label{subsec:implications}
-The main focus of this work was to merge the approach using the transformer and the implicit layers to replace the manual selection of scores for candidates,
-as well as show the possibility of future research focusing on High-Frequency Trading (HFT)
-arbitrage strategies and the reduction of execution speeds shown in \hyperref[tab:performance]{Table~\ref*{tab:performance}}.
+The main focus of this work was to merge the approach using the transformer and the implicit layers to
+ensure no-arbitrage conditions in the SABR model by solving for a fixed-point problem.
+The approach of using neural networks, even though significantly faster than Monte Carlo methods, could be further optimized for the context of high-frequency intraday trading.
 Adapting the model to accept exogenous market factors besides the observed data, such as macroeconomic indicators, market indexes, and other financial instruments,
 could allow the model to better adapt to changing market regimes and is also a promising extension in future research.

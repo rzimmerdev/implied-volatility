@@ -1,4 +1,4 @@
-\title{Deep Implicit Layers for Smooth Implied Volatility Surface Interpolation*\\
+\title{Deep Implicit Layers for No-Arbitrage Implied Volatility Surface Interpolation*\\
 \thanks{*This work was supported by the São Paulo State Research Support Foundation (FAPESP).}
 }
 
@@ -25,14 +25,13 @@ email address or ORCID}
 
 \begin{abstract}
     We implement a neural network architecture based on deep implicit layers with the objective of optimizing the parameters of
-    multiple SABR (stochastic alpha, beta, rho) models of implied volatility surfaces in the context of financial options.
-    The parameter values for the models are fitted on daily data points and used for generating smooth interpolated points in the surface.
-    The motivation behind our approach is to reduce arbitrage opportunities when generating smooth interpolation and extrapolation of the surface.
-    The proposed architecture determines the parameters of the SABR model that optimize for minimal statistical arbitrage opportunities in observed contracts.
-    We fit the model using a dataset of historical listed option contracts as well as the calculated implied volatility for these contracts.
-    The innate ability of transformer architectures to process observations of sequences with non-fixed lengths, i.e.,
-    for contracts with varying expiration dates is used to choose candidate points that best summarize the observed data.
-    The surfaces generated with our network are then compared to a baseline linear interpolation model.
+    multiple SABR (stochastic alpha, beta, rho) models in the context of financial options.
+    Our network is trained on historical traded option contracts and calculated implied volatility values,
+    and used as the selection criteria for candidate sets that minimize arbitrage opportunities in the SABR model optimization process.
+    We propose an implicit formulation that solves for a fixed-point problem between the observed data and generated surfaces,
+    where implicit layers are combined with a transformer architecture to process sequences with varying lengths:
+    contracts with unique strike prices and expiration dates.
+    The surfaces produced with our scoring network are then compared to a baseline linear interpolation model.
 \end{abstract}
 
 \begin{IEEEkeywords}
