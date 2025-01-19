@@ -12,14 +12,14 @@ asset price and the corresponding volatility levels are used to calculate an app
     \item \textbf{Volvol (\(\nu\))}: The volatility of the volatility process itself.
 \end{itemize}
 
-The simplified function for the implied volatility using the SABR model and logarithmic ``moneyness'' $x = \log\left(\frac{K}{f(t)}\right)$ is then given by~\cite{Hagan2002}:
+The simplified function for the implied volatility using the SABR model and logarithmic ``moneyness'' $x = \log\left(\frac{K}{F_t}\right)$ is then given by~\cite{Hagan2002}:
 \begin{equation*}
-    f(t) = S e^{(r - q)t}
+    F_t = S e^{(r - q)t}
 \end{equation*}
 
 \begin{equation*}
-    \sigma_{\textit{BS}}(t, K) =
-    \alpha \frac{K^{\frac{1 - \beta}{2}}}{1 + \left( \frac{(1 - \beta)^2 \rho^2}{24} + \frac{(1 - \beta)^2(2 - 3\rho^2)}{1920} \right) (K f(t))^{1 - \beta}}
+    \sigma_{\textit{BS}}(F_t, K) =
+    \alpha \frac{K^{\frac{1 - \beta}{2}}}{1 + \left( \frac{(1 - \beta)^2 \rho^2}{24} + \frac{(1 - \beta)^2(2 - 3\rho^2)}{1920} \right) (F_t K)^{1 - \beta}}
 \end{equation*}
 
 where $S$ is the underlying asset price, $r$ is the risk-free rate, $q$ is the dividend yield, $t$ is the time to maturity,
