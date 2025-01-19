@@ -1,0 +1,20 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+\subsection{Summary}
+\label{subsec:summary}
+This work presents an architecture drawing on approaches by Kim et al. (2021)~\cite{Kim2021} and Kolter et al. (2020)~\cite{Kolter2020}
+to optimize the parameters of multiple SABR models using a neural network with implicit deep equilibrium layers as the candidate set selection mechanism.
+Our approach was successful in enforcing the no-arbitrage conditions in the resulting surfaces by solving for a fixed-point problem between the observed data and generated IV values.
+The time complexity of the trained model vastly outperformed the Monte Carlo method, with a speedup of 6300x, and was able to generalize well to test data,
+as shown in \hyperref[tab:performance]{Table~\ref*{tab:performance}} and \hyperref[tab:training]{Table~\ref*{tab:training}}, respectively.
+Additionally, the neural network approach supports fine-tuning to incorporate new daily observations;
+a significant advantage over the Monte Carlo process, which would require estimation from scratch using the new dataset.
+
+\subsection{Implications and Future Work}
+\label{subsec:implications}
+The main focus of this work was to merge the approach using the transformer and the implicit layers to
+ensure no-arbitrage conditions in the SABR model by solving for a fixed-point problem.
+The approach of using neural networks, even though significantly faster than Monte Carlo methods, could be further optimized for the context of high-frequency intraday trading.
+Adapting the model to accept exogenous market factors besides the observed data, such as macroeconomic indicators, market indexes, and other financial instruments,
+could allow the model to better adapt to changing market regimes and is also a promising extension in future research.

@@ -1,0 +1,49 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+%Template version as of 6/27/2024
+
+\usepackage{amsmath,amsfonts}
+\usepackage{multicol}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{blindtext}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{algorithmicx}
+\usepackage{mathtools}
+\usepackage{cleveref}
+\usepackage{cite}
+\usepackage[printwatermark]{xwatermark}
+\usepackage{lipsum}
+\newcommand{\BibTeX}{\textrm{B \kern -.05em \textsc{i \kern -.025em b} \kern -.08em
+T \kern -.1667em \lower .7ex \hbox{E} \kern -.125emX}}
+%\newwatermark[allpages,color=red!50,angle=45,scale=1,xpos=0,ypos=0]{PREPRINT}
+
+\begin{document}
+    \input{cover}
+
+    \input{content/introduction}
+
+    \input{content/theory}
+
+    \input{content/results}
+
+    \input{content/conclusion}
+
+    % appendices
+    % image for the architecture
+    \newpage
+
+    \input{content/appendix}
+
+    \newpage
+
+    \bibliographystyle{plain}
+    \bibliography{bibliography}
+
+\end{document}

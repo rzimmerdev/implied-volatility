@@ -1,0 +1,39 @@
+\title{Deep Implicit Layers for No-Arbitrage Implied Volatility Surface Interpolation*\\
+\thanks{*This work was supported by the São Paulo State Research Support Foundation (FAPESP).}
+}
+
+\author{\IEEEauthorblockN{1\textsuperscript{st} Given Name Surname}
+\IEEEauthorblockA{\textit{dept. name of organization (of Aff.)} \\
+\textit{name of organization (of Aff.)}\\
+City, Country \\
+email address or ORCID}
+}
+
+\author{
+    \href{https://orcid.org/0009-0008-6064-9895}{
+        \includegraphics[scale=0.06]{images/orcid}
+        \hspace{1mm}Rafael Zimmer
+    }\\
+    Institute of Mathematical Science and Computing\\
+    University of São Paulo - Brazil \\
+    \texttt{rafael.zimmer@usp.br} \\
+}
+
+\date{15th of July, 2024}
+
+\maketitle
+
+\begin{abstract}
+    We implement a neural network architecture based on deep implicit layers with the objective of optimizing the parameters of
+    multiple SABR (stochastic alpha, beta, rho) models in the context of financial options.
+    Our network is trained on historical traded option contracts and calculated implied volatility values,
+    and used as the selection criteria for candidate sets that minimize arbitrage opportunities in the SABR model optimization process.
+    We propose an implicit formulation that solves for a fixed-point problem between the observed data and generated surfaces,
+    where implicit layers are combined with a transformer architecture to process sequences with varying lengths:
+    contracts with unique strike prices and expiration dates.
+    The surfaces produced with our scoring network are then compared to a baseline linear interpolation model.
+\end{abstract}
+
+\begin{IEEEkeywords}
+    Neural Networks, Implied Volatility, Transformers, Quantitative Methods, Implicit Layers.
+\end{IEEEkeywords}
