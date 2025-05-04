@@ -24,7 +24,7 @@ The simplified function for the implied volatility using the SABR model and loga
 
 where $S$ is the underlying asset price, $r$ is the risk-free rate, $q$ is the dividend yield, $t$ is the time to maturity,
 $K$ is the strike price and $f(t)$ is the forward price of the asset for a given time to maturity.
-Refer to \hyperref[sec:sabr]{Appendix~\ref*{sec:sabr}} for the full equation.
+Refer to \Cref{sec:sabr} for the full equation.
 
 Our approach optimizes one SABR model for each unique strike price per day.
 Three continuous functions map from continuous maturities to the model parameters: $\alpha$, $\rho$, and $\nu$.
@@ -99,7 +99,7 @@ In the context of our specific architecture, we use only the encoder block and a
 The hidden values are passed to fully-connected (FC) layers, and implicit fixed-point iteration layers are added as final output layers.
 
 \subsubsection{Details on the Implicit Layer}
-Using a Deep Equilibrium Model variation for the Implicit Layer, we adapt \hyperref[eq:fixed_point]{Equation~\ref*{eq:fixed_point}} by using the following fixed point equation instead,
+Using a Deep Equilibrium Model variation for the Implicit Layer, we adapt \Cref{eq:fixed_point} by using the following fixed point equation instead,
 where $g$ is the MAE between the observed surface and the generated surface using the SABR model optimized on the filtered candidate set.
 \begin{equation}
     \label{eq:dem}
@@ -123,12 +123,13 @@ Finally, $y$ are the hidden values as well as the final output scores.
 \subsubsection{Monte Carlo Estimation of Z-Scores}
 \label{subsubsec:monte_carlo}
 
-As mentioned in \hyperref[subsec:sabr]{Section~\ref*{subsec:sabr}}, a Monte Carlo process is used to estimate synthetic target SS scores for the model.
+As mentioned in \Cref{subsec:sabr}, a Monte Carlo process is used to estimate synthetic target SS scores for the model.
 Instead of using the entire daily candidate set for calculating the encoded variables \textbf{P}, \textbf{Q}, and \textbf{R} for the SABR model,
 only $k$ small subsets with size $p \cdot n$, where $n$ is the total number of candidate points and $p$ is a percentage value,
-of the candidate set are used as input to the \textit{BFGS} algorithm to reduce surface volatility, resulting in $\widetilde{\textbf{P}}$, $\widetilde{\textbf{Q}}$, and $\widetilde{\textbf{R}}$.
+of the candidate set are used as input to the \textit{BFGS} algorithm to reduce surface volatility,
+resulting in $\widetilde{\textbf{P}}$, $\widetilde{\textbf{Q}}$, and $\widetilde{\textbf{R}}$.
 The SS score is then calculated as the mean absolute error (MAE) between the functions $f_{\alpha}$, $f_{\rho}$, and $f_{\nu}$
-using both encoded variable types as shown in \hyperref[alg:mc]{Algorithm~\ref*{alg:mc}} and its normalized values are used as target values for our model.
+using both encoded variable types as shown in \Cref{alg:mc} and its normalized values are used as target values for our model.
 The choice of using a neural network approach for calculating the SS scores is motivated by the much higher computational cost of the Monte Carlo estimation,
 as well as the possibility of using previous observations to calculate the current day's scores.
 

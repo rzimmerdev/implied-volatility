@@ -1,0 +1,36 @@
+\RequirePackage[2018-12-01]{latexrelease}
+\PassOptionsToPackage{authoryear,round}{natbib}
+\documentclass{rQUF2e}
+\usepackage{hyperref}
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+\usepackage{mathtools}
+\usepackage{caption}
+\usepackage{cleveref}
+
+\begin{document}
+    \input{cover}
+
+    \input{content/introduction}
+
+    \input{content/theory}
+
+    \input{content/results}
+
+    \input{content/conclusion}
+
+    \input{content/appendix}
+
+    \newpage
+    \section*{Funding Statement}
+    \label{sec:funding}
+    This research received no specific grant from any funding agency in the public, commercial, or not-for-profit sectors.
+
+    \section*{Disclosure of interest}
+    \label{sec:disclosure}
+    No potential conflict of interest was reported by the author.
+
+    \bibliographystyle{rQUF}
+    \bibliography{bibliography}
+\end{document}

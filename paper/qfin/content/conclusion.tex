@@ -1,0 +1,26 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+\subsection{Summary}
+\label{subsec:summary}
+This work presents an architecture drawing on approaches by~\cite{Kim2021} and~\cite{Kolter2020}
+to optimize the parameters of multiple SABR models using a neural network with implicit deep equilibrium layers as the candidate set selection mechanism.
+Our approach was successful in enforcing the no-arbitrage conditions in the resulting surfaces by solving for a fixed-point problem between the observed data and generated IV values.
+The time complexity of the trained model vastly outperformed the Monte Carlo method, with a speedup of $6\,300\%$, and was able to generalize well to test data,
+as shown in \Cref{tab:training} and \Cref{tab:performance}, respectively.
+Additionally, the neural network approach supports fine-tuning to incorporate new daily observations;
+a significant advantage over the Monte Carlo method, which would require estimation from scratch using the new dataset.
+
+\subsection{Implications and Future Work}
+\label{subsec:implications}
+The main focus of this work was to reduce arbitrage conditions by reducing the differences between the surfaces
+generated with the SABR models and actual surfaces observed from daily traded option contracts.
+We leveraged the ability of the implicit formulation in solving for a fixed-point problem,
+combined with the very low execution times that were only possible with the Anderson acceleration method,
+ensuring near optimal no-arbitrage conditions between the generated surfaces and observed implied volatility surfaces.
+
+The approach of using neural networks, even though already significantly faster than Monte Carlo methods,
+could be further optimized in the context of high-frequency intraday trading.
+Adapting the feature set to include historical exogenous market factors, besides just traded contracts,
+such as macroeconomic indicators, market indexes, and other financial instruments,
+could allow the model to better adapt to changing market regimes and could be a promising extension in future research.
