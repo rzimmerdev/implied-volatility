@@ -45,16 +45,17 @@ Broyden-Fletcher-Goldfarb-Shanno (BFGS) quasi-Newton non-linear optimization alg
 This step is commonly performed using only a subset of the daily observed prices~\citep{Kim2021},
 due to the fact that some points may contain unreliable prices of illiquid contracts that do not match the real prices of the derivative,
 and their usage in the optimization step increases the variance of the final model.
-To solve this difficulty, the points used as input for the BFGS algorithm are often manually filtered according to criteria set by human experts~\citep{Hagan2002}.
+To overcome this initial difficulty, the points used as inputs to the BFGS algorithm are often heuristically filtered by human experts~\citep{Hagan2002}.
 Instead of manually selecting these candidate points, models capable of automatically
-receive point clouds and return a numerical score to be used as selection criteria,
-such as transformers, have been proposed~\citep{Cao2020, Kim2021, Bae2024, Jerbi2020}.
+receive point clouds and returning a numerical score to be used as selection criteria --- the implicit volatility values directly ---
+such as transformer architectures, have already shown promising results~\citep{Cao2020, Kim2021, Bae2024, Jerbi2020}.
 
-The main contribution of this research will be the adaptation of \textit{neural implicit layers},
+The main contribution of this work will be the adaptation of \textit{neural implicit layers},
 a physics-inspired variation of fully connected linear layers where layer weights are optimized to solve for a fixed point equation,
-to be used together the transformer architecture~\citep{Vaswani2017} for the task of filtering candidate points for the \textit{SABR} model
+to be used in conjunction with a transformer architecture~\citep{Vaswani2017}
+for the task of filtering candidate points for the \textit{SABR} parameter optimization.
 This approach is an implicit formulation variation for the scoring model proposed by~\cite{Kim2021},
-aiming to enforce a zero arbitrage condition in the SABR optimization process.
+aiming to enforce a zero arbitrage condition in the resulting generated surface when solving the fixed point equation.
 This type of layer has been shown to effectively represent smooth surface densities and demonstrated state-of-the-art results in function
 fitting tasks similar to the one presented in this paper~\citep{Kawaguchi2021},
 all while being computationally faster for solving interpolation problems than linear layer models with similar performance~\citep{Kolter2020}.
@@ -70,14 +71,15 @@ The aforementioned \textit{SABR} model is a parametric stochastic volatility app
 the transformer architecture is used as the scoring model to filter the candidate points for the optimization process.
 This score, called the \textit{summarized suitability} score (\textit{SS} score), is assigned to each daily traded options contract,
 and indicates how adequate a candidate point is at summarizing the format of the resulting surface.
-It measures how much removing a candidate point would affect the generated surface shape and smoothness
-\footnote{The use of a per-point score is similar to what the principal components of
-a collection of points are when using the Principal Component Analysis (PCA) technique.}.
+It measures how much removing a candidate point would affect the generated surface shape and smoothness\footnote{
+    The use of a per-point score can be compared to the principal components of
+    a collection of points within the context of Principal Component Analysis (PCA),
+    a technique commonly used to reduce the dimensionality of input features.
+}.
 The highest scoring points --- which best represent the surface ---
 are then selected and used as input for the BFGS algorithm used to fit the \textit{SABR} model parameters.
 This process aims to remove outlier points that might introduce variance, and consequently arbitrage opportunities~\citep{Kim2021},
-in the optimization process for each of the \textit{SABR} models
-\footnote{
+in the optimization process for each of the \textit{SABR} models\footnote{
     A separate model is fitted for each unique strike price in a given day.
     \Cref{subsec:sabr} covers additional details on fitting the \textit{SABR} model at each unique strike price.
 }.
@@ -93,19 +95,28 @@ where $z$ is a solution for the equation:
     \label{eq:fixed_point}
     g(x, z) = 0
 \end{equation}
-Formulating the problem as a fixed point equation can be used for a multitude of problems, including finding fixed points in recurrent networks,
-solutions to differential equations leading to neural ordinary differential equations, and several physics optimization problems~\citep{Chen2019}.
+Formulating the problem as a fixed point equation can be used for a multitude of problems,
+including finding fixed points in recurrent networks,
+solutions to differential equations leading to neural ordinary differential equations,
+and several physics optimization problems~\citep{Chen2019}.
 The implicit formulation offers several practical advantages, primarily the separation of the solution method from the layer
 definition which can be useful in maintaining interpretability of the resulting model~\citep{Kawaguchi2021} and
 as a way to enforce constraints in the optimization process, the latter being the main focus of this work.
 
-Moreover, the resulting implicit layer has significant benefits,
-specifically in deep learning and automatic differentiation frameworks~\citep{Massaroli2021,Kolter2020}.
+In our case, $g$ is the mean absolute error between the observed implied volatility values for traded contracts
+and the actual interpolated implied volatility values for the same strike-maturity pairs.
+If we use the \textit{SABR} model as the underlying function to interpolate the implied volatility values
+we can additionally be sure that the generated surface is smooth and mostly arbitrage free~\citep{Hagan2002, Grzelak2016, Hagan2014}.
+Thus, by finding the set of \textit{SABR} parameters $x$ that solve the equation $g(x, z) = 0$
+we can reduce arbitrage opportunities for the resulting interpolated IV values.
+
+Moreover, the implicit formulation can result in significant benefits when used in
+deep learning and automatic differentiation frameworks~\citep{Massaroli2021,Kolter2020}.
 Automatic differentiation methods store the entire computation graph, which can be memory-intensive.
 With implicit layers, however, the implicit function theorem allows computing gradients directly at the solution point and
 therefore storing intermediate variables becomes redundant~\citep{Massaroli2021}.
 This improves memory efficiency, making implicit layers particularly
-advantageous when substituting existing layers within large deep learning models~\citep{Li2020}.
+advantageous when used to substitute fully-connected output layers within large deep learning models~\citep{Li2020}.
 
 \subsection{Anderson Acceleration for Implicit Layers}
 \label{subsec:anderson}
@@ -138,9 +149,8 @@ to solve a fixed-point equation within the implicit layers, and the layer weight
             \State \( X_k \gets \beta \alpha^\top F_0 + (1 - \beta) \alpha^\top X_0 \)
             \State \( F_k \gets f(X_k) \)
             \State Compute residual:
-            \[
-                \text{residual} = \frac{\| F_k - X_k \|}{\| F_k \| + 10^{-5}}
-            \]
+
+            $\text{residual} = \frac{\| F_k - X_k \|}{\| F_k \| + 10^{-5}}$
             \If{residual \(<  \epsilon \)}
                 \State \textbf{break}
             \EndIf

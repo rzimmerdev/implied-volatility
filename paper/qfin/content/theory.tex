@@ -30,8 +30,10 @@ Three continuous functions map from continuous maturities to the model parameter
 This ensures a smooth transition between the different strike levels,
 as using a single choice for the parameters for all strike and day pairs alone can introduce discontinuity in the resulting implied volatility surfaces~\citep{Hagan2015, Kim2021}.
 Given the functions for the parameters $\alpha_t = f_{\alpha}(t, \textbf{P})$, $\rho_t = f_{\rho}(t, \textbf{Q})$, and $\nu_t = f_{\nu}(t, \textbf{R})$\footnote{
-    We fix the value for $\beta$ to a constant and use it as hyperparameter instead,
-    as it corresponds to the sensitivity of the forward price towards movements in the spot price and generally remains the same over time for each asset.
+    The value for $\beta$ corresponds to the sensitivity of the forward price towards movements in the spot price,
+    and represents a characteristic of the asset itself.
+    As it does not change significantly over time to justify additional calibration,
+    we treat it as a constant hyperparameter instead.
 },
 and the encoding variables \textbf{P, Q}, and \textbf{R} respectively,
 such that $\textbf{P} \in \mathbb{R}^{5}$, $\textbf{Q} \in \mathbb{R}^{4}$, and $\textbf{R} \in \mathbb{R}^{4}$.
@@ -82,8 +84,8 @@ of the network to reduce the errors the SABR generated surfaces have with respec
 
 \begin{figure}[h]
     \begin{center}
-        \includegraphics[width=0.7\textwidth]{images/unfitted}
-        \caption{Surface generated using SABR models fit on some candidate set containing the complete daily observation set.}
+        \includegraphics[width=0.55\textwidth]{images/unfitted}
+        \caption{Interpolated surface using SABR models fit on a unfiltered daily candidate set.}
         \label{fig:unfitted}
     \end{center}
 \end{figure}
@@ -142,7 +144,7 @@ Finally, $y$ are the hidden values as well as the final output scores.
     \end{center}
 \end{figure}
 
-\subsubsection{Monte Carlo Estimation of Z-Scores}
+\subsubsection{Monte Carlo Estimation of SS Scores}
 \label{subsubsec:monte_carlo}
 
 As mentioned in \Cref{subsec:sabr}, a Monte Carlo process is used to estimate synthetic target SS scores for the model.
@@ -176,6 +178,6 @@ variables for the SABR models to be used for the actual surface interpolation.
         \EndFor
         \State z-normalize $\text{SS}_{\alpha}, \text{SS}_{\rho}, \text{SS}_{\nu}$
     \end{algorithmic}
-    \caption{Monte Carlo Estimation of Target Z-Scores}
+    \caption{Monte Carlo Estimation of normalized Target SS Scores}
     \label{alg:mc}
 \end{algorithm}

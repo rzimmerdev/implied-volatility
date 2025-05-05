@@ -22,18 +22,19 @@
 \begin{abstract}
     We implement a neural network architecture based on deep implicit layers with the objective of optimizing the parameters of
     multiple SABR (stochastic alpha, beta, rho) models in the context of financial options.
-    Our network is trained on historical traded option contracts and calculated implied volatility values,
-    and used as the selection criteria for candidate sets that minimize arbitrage opportunities in the SABR model optimization process.
-    We propose an implicit formulation that solves for a fixed-point problem between the observed data and generated surfaces,
-    where implicit layers are combined with a transformer architecture to process sequences with varying lengths:
-    contracts with unique strike prices and expiration dates.
-    The surfaces produced with our scoring network are then compared to a baseline linear interpolation model.
+    Our network is trained on a dataset of historical traded option contracts and their respective calculated implied volatility values.
+    We perform a candidate selection process using summarized suitability scores to remove possible outliers from our candidate set,
+    aiming to minimize arbitrage opportunities when optimizing for the SABR model parameters.
+    Our approach leverages the implicit formulation for the scoring process that solves for an implicit fixed-point problem
+    between the observed data and SABR generated surfaces,
+    where a transformer architecture is combined to deep implicit layers to process sequences of contracts with varying lengths.
+    The surfaces produced with our scoring network are then compared to a baseline linear interpolation of the daily surfaces.
 \end{abstract}
 
 \begin{keywords}
-    Neural Networks; Implied Volatility; Transformers; Quantitative Methods; Implicit Layers
+    Neural Networks; Implied Volatility; Transformers; Quantitative Methods; Implicit Layers; Equity Options
 \end{keywords}
 
 \begin{classcode}
-    C45; C61; C63
+    C45; G13; C63; C61
 \end{classcode}
