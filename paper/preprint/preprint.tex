@@ -1,0 +1,44 @@
+\documentclass{article}
+\usepackage{arxiv}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{natbib}
+\usepackage{doi}
+
+\usepackage[english]{babel}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{caption}
+
+% remove
+\usepackage{lipsum}
+
+\input{cover}
+
+\begin{document}
+	\maketitle
+    \input{textual/abstract}
+
+	\keywords{Neural Networks \and Implied Volatility \and Transformers \and Quantitative Methods \and Implicit Layers.}  % optional
+
+    \include{textual/introduction}
+
+	\include{textual/theory}
+
+	\include{textual/results}
+
+	\include{textual/conclusion}
+
+	\bibliography{references}
+	\bibliographystyle{unsrtnat}
+\end{document}

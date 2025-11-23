@@ -1,0 +1,82 @@
+\section{Methodology and Results}
+
+\subsection{Data Collection and Pre-Processing}
+
+The data used in this work were obtained from historical options data on the $SPY$ asset from the US stock exchange, from 2021 to 2022, available on \href{https://www.kaggle.com/datasets/shawlu/option-spy-dataset-combinedcsv}{Kaggle}. This dataset contains various columns about traded options, indexed by date, including strike prices, future prices, maturities, implied volatilities, among others \citep{}. The file can be and was downloaded and stored locally in a specific directory for processing.
+
+\subsection{Dataset Description}
+
+The dataset contains the following columns relevant to our study, in addition to several others:
+\begin{itemize}
+	\item \textbf{underlying}: Price of the underlying asset.
+	\item \textbf{strike}: Option's strike price.
+	\item \textbf{daysToExpiration}: Days remaining until the option's expiration.
+	\item \textbf{iv}: Value for the implied volatility.
+	\item \textbf{dt}: Current date, used as the preprocessed set index.
+\end{itemize}
+
+Additionally, we added two calculated columns:
+\begin{itemize}
+	\item \textbf{maturity}: Calculated by dividing \textit{daysToExpiration} by 252 (working days in a year) to normalize the maturity time.
+	\item \textbf{r}: Risk-free rate obtained from the Federal Reserve Economic Data (FRED) for the corresponding period.
+	\item \textbf{d}: Dividend yield paid quarterly by the SPY.
+\end{itemize}
+
+\subsection{Data Preprocessing}
+
+The data preprocessing involved several essential steps, predominantly performed to allow the use of the data directly in the transformer architecture and subsequent use to generate the surface for historical data. The transformer takes four dimensions as input, which are:
+\begin{enumerate}
+	\item Time to maturity;
+	\item The value of the parameter ($\alpha, \rho$, or $\nu$);
+	\item $\mathbf{1}$ if the parameter was calculated for the current day, $\mathbf{0}$ if it was calculated for a fixed set of maturities (top 7 most frequent maturities) using the previous day fitted parameters;
+	\item Value calculated using the previous day's $\mathbf{P}$, $\mathbf{Q}$ and $\mathbf{R}$ parameters for same strike and maturity.
+\end{enumerate}
+
+The target variable is the scores generated using all candidate points for the current day, and the model's error function uses a percentage \textbf{p} of points and is trained to minimize the quadratic error function of the scores.
+
+\subsection{Results and Surface Comparison}
+
+We used a linear interpolation of the daily observed points as the baseline and compared it with the model's performance concerning internal points to a grid generated for points within the daily range, both for maturity values and strike.
+
+Our transformer model was trained on the dataset, with 68 observations, each with sequences averaging 700 maturity and strike combinations. With an early stopping of $\epsilon = 10^{-3}$ sensitivity, the training was performed with a maximum epoch range of $10^{2}$ epochs.
+
+\begin{table}[]
+	\centering
+	\renewcommand{\arraystretch}{1.5} % Adjust the vertical padding
+	\begin{tabular}{|l|l|l|l|}
+		\hline
+		Model           & Test Loss (RMSE) & Train time (Transformer) & Preprocess Time (Monte Carlo) \\ \hline
+		$SST_{\alpha}$  & 1.21             & $\sim$4m21s              & $\sim$7m50s                   \\ \hline
+		$SST_{\rho}$    & 0.72             & $\sim$2m5s               & $\sim$6m34s                   \\ \hline
+		$SST_{\nu}$ & 0.75             & $\sim$1m43s              & $\sim$6m43s                   \\ \hline
+	\end{tabular}
+	\captionsetup{skip=15pt} % Adjust the margin as needed
+	\caption{Model training metrics, for each of the three SST models.}
+	\label{tab:training}
+\end{table}
+
+\begin{figure}
+	\begin{center}
+		\includegraphics[width=10cm]{images/losses.png}
+		\caption{Historical loss function from a Transformer training session on train data.}
+		\includegraphics[width=10cm]{images/unfitted.png}
+		\caption{Surface generated using a manually optimized SABR model. Notice how the non-removal of possible outlier candidates generates a out-of-range peak in the surface.}
+	\end{center}
+\end{figure}
+
+
+\begin{figure}
+	\begin{center}
+		\includegraphics[width=7cm]{images/linear_1.png}
+		\includegraphics[width=7cm]{images/linear_2.png}
+		\includegraphics[width=7cm]{images/linear_3.png}
+		\caption{Surfaces interpolated on test data using a linear interpolation model.}
+		\includegraphics[width=7cm]{images/implicit_1.png}
+		\includegraphics[width=7cm]{images/implicit_2.png}
+		\includegraphics[width=7cm]{images/implicit_3.png}
+		\caption{Surfaces for the same out-of-sample test days interpolated using the implicit scoring model for candidate selection.}
+	\end{center}
+\end{figure}
+
+
+
