@@ -1,5 +1,7 @@
 # implied-volatility
 
+**Read the paper** [here](https://github.com/rzimmerdev/implied-volatility/blob/4de858e15d2835ac3d4da4abfb99e3689b53012e/paper/qfin/qfin.pdf)
+
 ## About
 This is the code for the report on `Transformers para Geração de Superfícies Suaves de Volatilidade Implícita`,
 in which we aim to approximate the implied volatility surface, or the volatility smirk, 
